@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 Manivannan Sadhasivam <mani@kernel.org>
+ * Copyright (c) 2022 Intellinium <giuliano.franchetto@intellinium.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,12 +8,12 @@
 #include <init.h>
 #include <errno.h>
 #include <lorawan/lorawan.h>
-#include <zephyr.h>
 
 #include "lw_priv.h"
 
 #include <LoRaMac.h>
 #include <Region.h>
+#include "nvm/lorawan_nvm.h"
 
 BUILD_ASSERT(!IS_ENABLED(CONFIG_LORAMAC_REGION_UNKNOWN),
 	     "Unknown region specified for LoRaWAN in Kconfig");
@@ -48,8 +49,8 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LORAMAC_REGION_UNKNOWN),
 #include <logging/log.h>
 LOG_MODULE_REGISTER(lorawan);
 
-K_SEM_DEFINE(mlme_confirm_sem, 0, 1);
-K_SEM_DEFINE(mcps_confirm_sem, 0, 1);
+K_SEM_DEFINE(mlme_confirm_sem, 0, 1)
+K_SEM_DEFINE(mcps_confirm_sem, 0, 1)
 
 K_MUTEX_DEFINE(lorawan_join_mutex);
 K_MUTEX_DEFINE(lorawan_send_mutex);
@@ -581,6 +582,8 @@ int lorawan_start(void)
 
 static int lorawan_init(const struct device *dev)
 {
+	ARG_UNUSED(dev);
+
 	LoRaMacStatus_t status;
 
 	sys_slist_init(&dl_callbacks);
@@ -591,7 +594,13 @@ static int lorawan_init(const struct device *dev)
 	macPrimitives.MacMlmeIndication = MlmeIndication;
 	macCallbacks.GetBatteryLevel = getBatteryLevelLocal;
 	macCallbacks.GetTemperatureLevel = NULL;
-	macCallbacks.NvmDataChange = NULL;
+
+	if (IS_ENABLED(CONFIG_LORAWAN_NVM_NONE)) {
+		macCallbacks.NvmDataChange = NULL;
+	} else {
+		macCallbacks.NvmDataChange = lorawan_nvm_data_mgmt_event;
+	}
+
 	macCallbacks.MacProcessNotify = OnMacProcessNotify;
 
 	status = LoRaMacInitialization(&macPrimitives, &macCallbacks,
@@ -600,6 +609,10 @@ static int lorawan_init(const struct device *dev)
 		LOG_ERR("LoRaMacInitialization failed: %s",
 			lorawan_status2str(status));
 		return -EINVAL;
+	}
+
+	if (!IS_ENABLED(CONFIG_LORAWAN_NVM_NONE)) {
+		lorawan_nvm_data_restore();
 	}
 
 	LOG_DBG("LoRaMAC Initialized");
