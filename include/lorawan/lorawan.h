@@ -223,6 +223,18 @@ int lorawan_send(uint8_t port, uint8_t *data, uint8_t len, uint8_t flags);
 int lorawan_set_class(enum lorawan_class dev_class);
 
 /**
+ * @brief Get the current device class
+ *
+ * Get the current device class. This function may be called before
+ * or after a network connection has been established.
+ *
+ * @param dev_class Pointer to retrieve device class
+ *
+ * @return 0 if successful, negative errno code if failure
+ */
+int lorawan_get_class(enum lorawan_class *dev_class);
+
+/**
  * @brief Set the number of tries used for transmissions
  *
  * @param tries Number of tries to be used
