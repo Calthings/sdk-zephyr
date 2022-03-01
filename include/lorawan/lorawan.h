@@ -268,6 +268,17 @@ void lorawan_enable_adr(bool enable);
 int lorawan_set_datarate(enum lorawan_datarate dr);
 
 /**
+ * @brief Get the current data rate
+ *
+ * Retrieve data rate in use.
+ *
+ * @param dr Ptr to returned Data rate
+ *
+ * @return 0 if successful, negative errno code if failure
+ */
+int lorawan_get_datarate(enum lorawan_datarate *dr);
+
+/**
  * @brief Get the minimum possible datarate
  *
  * The minimum possible datarate may change in response to a TxParamSetupReq
@@ -289,6 +300,17 @@ enum lorawan_datarate lorawan_get_min_datarate(void);
  */
 void lorawan_get_payload_sizes(uint8_t *max_next_payload_size,
 			       uint8_t *max_payload_size);
+
+/**
+ * @brief Get the current settings of version and nonces
+ *
+ * Query the current version, device nonce, and join nonce
+ *
+ * @param Ptr to return version
+ * @param Ptr to return device nonce
+ * @param Ptr to return join nonce
+ */
+int lorawan_nvm_get_settings(uint32_t *pversion, uint16_t *pdev_nonce, uint16_t *pjoin_nonce);
 
 #ifdef __cplusplus
 }

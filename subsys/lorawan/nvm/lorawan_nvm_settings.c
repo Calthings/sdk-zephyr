@@ -163,6 +163,24 @@ static int on_setting_loaded(const char *key, size_t len,
 	return 0;
 }
 
+int lorawan_nvm_get_settings(uint32_t *pversion, uint16_t *pdev_nonce, uint16_t *pjoin_nonce)
+{
+	MibRequestConfirm_t mibReq;
+
+	/* Retrieve the actual context */
+	mibReq.Type = MIB_NVM_CTXS;
+	if (LoRaMacMibGetRequestConfirm(&mibReq) != LORAMAC_STATUS_OK) {
+		LOG_ERR("Could not get NVM context");
+		return -1;
+	}
+
+	if (pversion) *pversion = mibReq.Param.Contexts->Crypto.LrWanVersion.Value;
+	if (pdev_nonce) *pdev_nonce = mibReq.Param.Contexts->Crypto.DevNonce;
+	if (pjoin_nonce) *pjoin_nonce = mibReq.Param.Contexts->Crypto.JoinNonce;
+
+	return 0;
+}
+
 int lorawan_nvm_data_restore(void)
 {
 	int err;

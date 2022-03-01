@@ -13,6 +13,7 @@
 
 #include <LoRaMac.h>
 #include <Region.h>
+#include <settings/settings.h>
 #include "nvm/lorawan_nvm.h"
 
 BUILD_ASSERT(!IS_ENABLED(CONFIG_LORAMAC_REGION_UNKNOWN),
@@ -381,6 +382,27 @@ int lorawan_set_class(enum lorawan_class dev_class)
 	return 0;
 }
 
+int lorawan_get_class(enum lorawan_class *dev_class)
+{
+	LoRaMacStatus_t status;
+	MibRequestConfirm_t mib_req;
+
+	mib_req.Type = MIB_DEVICE_CLASS;
+
+	status = LoRaMacMibGetRequestConfirm(&mib_req);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("Failed to get device class: %s",
+			lorawan_status2str(status));
+		return lorawan_status2errno(status);
+	}
+
+	if (dev_class) {
+		*dev_class = mib_req.Param.Class;
+	}
+
+	return 0;
+}
+
 int lorawan_set_datarate(enum lorawan_datarate dr)
 {
 	MibRequestConfirm_t mib_req;
@@ -400,6 +422,27 @@ int lorawan_set_datarate(enum lorawan_datarate dr)
 
 	default_datarate = dr;
 	current_datarate = dr;
+
+	return 0;
+}
+
+int lorawan_get_datarate(enum lorawan_datarate *dr)
+{
+	LoRaMacStatus_t status;
+	MibRequestConfirm_t mib_req;
+
+	mib_req.Type = MIB_CHANNELS_DATARATE;
+
+	status = LoRaMacMibGetRequestConfirm(&mib_req);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("Failed to get datarate: %s",
+			lorawan_status2str(status));
+		return lorawan_status2errno(status);
+	}
+
+	if (dr) {
+		*dr = mib_req.Param.ChannelsDatarate;
+	}
 
 	return 0;
 }
@@ -612,6 +655,7 @@ static int lorawan_init(const struct device *dev)
 	}
 
 	if (!IS_ENABLED(CONFIG_LORAWAN_NVM_NONE)) {
+		settings_subsys_init();
 		lorawan_nvm_data_restore();
 	}
 
