@@ -301,6 +301,8 @@ enum lorawan_datarate lorawan_get_min_datarate(void);
 void lorawan_get_payload_sizes(uint8_t *max_next_payload_size,
 			       uint8_t *max_payload_size);
 
+int lorawan_set_channel_mask(void);
+
 /**
  * @brief Get the current settings of version and nonces
  *

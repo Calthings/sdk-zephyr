@@ -66,7 +66,7 @@ static void lorawan_nvm_save_settings(void)
 
 void lorawan_nvm_data_mgmt_event(uint16_t notifyFlags)
 {
-	LOG_WRN("New NVM notify flag: 0x%04X", notifyFlags);
+	LOG_INF("New NVM notify flag: 0x%04X", notifyFlags);
 
 	nvm_notify_flag = notifyFlags;
 
