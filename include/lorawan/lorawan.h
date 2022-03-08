@@ -301,7 +301,10 @@ enum lorawan_datarate lorawan_get_min_datarate(void);
 void lorawan_get_payload_sizes(uint8_t *max_next_payload_size,
 			       uint8_t *max_payload_size);
 
-int lorawan_set_channel_mask(void);
+/**
+ * @brief Override channel maks to include only sub-band 2 channels for region
+ */
+int lorawan_set_channel_mask_for_region(void);
 
 /**
  * @brief Get the current settings of version and nonces
@@ -313,6 +316,13 @@ int lorawan_set_channel_mask(void);
  * @param Ptr to return join nonce
  */
 int lorawan_nvm_get_settings(uint32_t *pversion, uint16_t *pdev_nonce, uint16_t *pjoin_nonce);
+
+/**
+ * @brief Reset mac settings to defaults and save
+ *
+ * Use to unjoin / reset a node to pre-join conditions by resetting mac state
+ */
+int lorawan_nvm_reset_settings(void);
 
 #ifdef __cplusplus
 }

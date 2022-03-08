@@ -30,7 +30,7 @@ if (flag_set(flag)) {								  \
 	}									  \
 }
 
-static void lorawan_nvm_save_settings(void)
+void lorawan_nvm_save_settings(void)
 {
 	MibRequestConfirm_t mibReq;
 
@@ -66,7 +66,7 @@ static void lorawan_nvm_save_settings(void)
 
 void lorawan_nvm_data_mgmt_event(uint16_t notifyFlags)
 {
-	LOG_INF("New NVM notify flag: 0x%04X", notifyFlags);
+	LOG_DBG("New NVM notify flag: 0x%04X", notifyFlags);
 
 	nvm_notify_flag = notifyFlags;
 
@@ -174,9 +174,14 @@ int lorawan_nvm_get_settings(uint32_t *pversion, uint16_t *pdev_nonce, uint16_t 
 		return -1;
 	}
 
-	if (pversion) *pversion = mibReq.Param.Contexts->Crypto.LrWanVersion.Value;
-	if (pdev_nonce) *pdev_nonce = mibReq.Param.Contexts->Crypto.DevNonce;
-	if (pjoin_nonce) *pjoin_nonce = mibReq.Param.Contexts->Crypto.JoinNonce;
+	if (pversion)
+		*pversion = mibReq.Param.Contexts->Crypto.LrWanVersion.Value;
+
+	if (pdev_nonce)
+		*pdev_nonce = mibReq.Param.Contexts->Crypto.DevNonce;
+
+	if (pjoin_nonce)
+		*pjoin_nonce = mibReq.Param.Contexts->Crypto.JoinNonce;
 
 	return 0;
 }

@@ -29,6 +29,14 @@
 void lorawan_nvm_data_mgmt_event(uint16_t flags);
 
 /**
+ * @brief Saves all the relevant LoRaWAN data to the Non-Volatile Memory.
+ *
+ * @note This function should only be called if a NVM has been enabled, and
+ * not directly by the application.
+ */
+void lorawan_nvm_save_settings(void);
+
+/**
  * @brief Restores all the relevant LoRaWAN data from the Non-Volatile Memory.
  *
  * @note This function should only be called if a NVM has been enabled, and

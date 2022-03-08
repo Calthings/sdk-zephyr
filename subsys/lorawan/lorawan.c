@@ -403,14 +403,14 @@ int lorawan_get_class(enum lorawan_class *dev_class)
 	return 0;
 }
 
-int lorawan_set_channel_mask(void)
+int lorawan_set_channel_mask_for_region()
 {
 #if defined( REGION_US915 )
 	//LoRaMacStatus_t status;
 	MibRequestConfirm_t mib_req;
 
-	// Enabling 2nd block of 8 channels (8-15) + channel 65
-	uint16_t channelMask[] = { 0xFF00, 0x0000, 0x0000, 0x0000, 0x0002, 0x0000};
+	// Enabling 2nd block of 8 channels (8-15) + channels 64-71
+	uint16_t channelMask[] = { 0xFF00, 0x0000, 0x0000, 0x0000, 0xFF02, 0x0000};
 	mib_req.Type = MIB_CHANNELS_MASK;
 	mib_req.Param.ChannelsMask = channelMask;
 	LoRaMacMibSetRequestConfirm( &mib_req );
@@ -642,6 +642,25 @@ int lorawan_start(void)
 
 	return 0;
 }
+
+#ifndef CONFIG_LORAWAN_NVM_NONE
+int lorawan_nvm_reset_settings()
+{
+	LoRaMacStatus_t status;
+
+	status = LoRaMacInitialization(&macPrimitives, &macCallbacks,
+				       LORAWAN_REGION);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("LoRaMacInitialization failed: %s",
+			lorawan_status2str(status));
+		return -EINVAL;
+	}
+
+	lorawan_nvm_save_settings();
+
+	return 0;
+}
+#endif
 
 static int lorawan_init(const struct device *dev)
 {
