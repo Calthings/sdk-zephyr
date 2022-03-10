@@ -34,6 +34,7 @@
 	DT_INST_NODE_HAS_PROP(0, antenna_enable_gpios)
 #define HAVE_GPIO_TX_ENABLE	DT_INST_NODE_HAS_PROP(0, tx_enable_gpios)
 #define HAVE_GPIO_RX_ENABLE	DT_INST_NODE_HAS_PROP(0, rx_enable_gpios)
+#define HAVE_GPIO_DEBUG_TOGGLE	DT_INST_NODE_HAS_PROP(0, debug_toggle_gpios)
 
 #define GPIO_CS_LABEL		DT_INST_SPI_DEV_CS_GPIOS_LABEL(0)
 #define GPIO_CS_PIN		DT_INST_SPI_DEV_CS_GPIOS_PIN(0)
@@ -42,6 +43,7 @@
 #define GPIO_ANTENNA_ENABLE_PIN	DT_INST_GPIO_PIN(0, antenna_enable_gpios)
 #define GPIO_TX_ENABLE_PIN	DT_INST_GPIO_PIN(0, tx_enable_gpios)
 #define GPIO_RX_ENABLE_PIN	DT_INST_GPIO_PIN(0, rx_enable_gpios)
+#define GPIO_DEBUG_TOGGLE_PIN	DT_INST_GPIO_PIN(0, debug_toggle_gpios)
 
 struct sx126x_data {
 	struct gpio_callback dio1_irq_callback;
@@ -55,6 +57,9 @@ struct sx126x_data {
 #endif
 #if HAVE_GPIO_RX_ENABLE
 	const struct device *rx_enable;
+#endif
+#if HAVE_GPIO_DEBUG_TOGGLE
+	const struct device *debug_toggle;
 #endif
 	const struct device *spi;
 	struct spi_config spi_cfg;
