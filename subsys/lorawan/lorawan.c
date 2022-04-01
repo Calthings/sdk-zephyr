@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 Manivannan Sadhasivam <mani@kernel.org>
+ * Copyright (c) 2022 Intellinium <giuliano.franchetto@intellinium.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,12 +8,13 @@
 #include <init.h>
 #include <errno.h>
 #include <lorawan/lorawan.h>
-#include <zephyr.h>
 
 #include "lw_priv.h"
 
 #include <LoRaMac.h>
 #include <Region.h>
+#include <settings/settings.h>
+#include "nvm/lorawan_nvm.h"
 
 BUILD_ASSERT(!IS_ENABLED(CONFIG_LORAMAC_REGION_UNKNOWN),
 	     "Unknown region specified for LoRaWAN in Kconfig");
@@ -48,8 +50,8 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LORAMAC_REGION_UNKNOWN),
 #include <logging/log.h>
 LOG_MODULE_REGISTER(lorawan);
 
-K_SEM_DEFINE(mlme_confirm_sem, 0, 1);
-K_SEM_DEFINE(mcps_confirm_sem, 0, 1);
+K_SEM_DEFINE(mlme_confirm_sem, 0, 1)
+K_SEM_DEFINE(mcps_confirm_sem, 0, 1)
 
 K_MUTEX_DEFINE(lorawan_join_mutex);
 K_MUTEX_DEFINE(lorawan_send_mutex);
@@ -359,8 +361,11 @@ int lorawan_set_class(enum lorawan_class dev_class)
 	case LORAWAN_CLASS_A:
 		mib_req.Param.Class = CLASS_A;
 		break;
-	case LORAWAN_CLASS_B:
 	case LORAWAN_CLASS_C:
+		/* BDD Level - allow this */
+		mib_req.Param.Class = CLASS_C;
+		break;
+	case LORAWAN_CLASS_B:
 		LOG_ERR("Device class not supported yet!");
 		return -ENOTSUP;
 	default:
@@ -374,6 +379,47 @@ int lorawan_set_class(enum lorawan_class dev_class)
 		return lorawan_status2errno(status);
 	}
 
+	return 0;
+}
+
+int lorawan_get_class(enum lorawan_class *dev_class)
+{
+	LoRaMacStatus_t status;
+	MibRequestConfirm_t mib_req;
+
+	mib_req.Type = MIB_DEVICE_CLASS;
+
+	status = LoRaMacMibGetRequestConfirm(&mib_req);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("Failed to get device class: %s",
+			lorawan_status2str(status));
+		return lorawan_status2errno(status);
+	}
+
+	if (dev_class) {
+		*dev_class = mib_req.Param.Class;
+	}
+
+	return 0;
+}
+
+int lorawan_set_channel_mask_for_region()
+{
+#if defined( REGION_US915 )
+	//LoRaMacStatus_t status;
+	MibRequestConfirm_t mib_req;
+
+	// Enabling 2nd block of 8 channels (8-15) + channels 64-71
+	uint16_t channelMask[] = { 0xFF00, 0x0000, 0x0000, 0x0000, 0xFF02, 0x0000};
+	mib_req.Type = MIB_CHANNELS_MASK;
+	mib_req.Param.ChannelsMask = channelMask;
+	LoRaMacMibSetRequestConfirm( &mib_req );
+	mib_req.Type = MIB_CHANNELS_DEFAULT_MASK;
+	mib_req.Param.ChannelsDefaultMask = channelMask;
+	LoRaMacMibSetRequestConfirm( &mib_req );
+#else
+	return -1;
+#endif
 	return 0;
 }
 
@@ -396,6 +442,27 @@ int lorawan_set_datarate(enum lorawan_datarate dr)
 
 	default_datarate = dr;
 	current_datarate = dr;
+
+	return 0;
+}
+
+int lorawan_get_datarate(enum lorawan_datarate *dr)
+{
+	LoRaMacStatus_t status;
+	MibRequestConfirm_t mib_req;
+
+	mib_req.Type = MIB_CHANNELS_DATARATE;
+
+	status = LoRaMacMibGetRequestConfirm(&mib_req);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("Failed to get datarate: %s",
+			lorawan_status2str(status));
+		return lorawan_status2errno(status);
+	}
+
+	if (dr) {
+		*dr = mib_req.Param.ChannelsDatarate;
+	}
 
 	return 0;
 }
@@ -576,8 +643,29 @@ int lorawan_start(void)
 	return 0;
 }
 
+#ifndef CONFIG_LORAWAN_NVM_NONE
+int lorawan_nvm_reset_settings()
+{
+	LoRaMacStatus_t status;
+
+	status = LoRaMacInitialization(&macPrimitives, &macCallbacks,
+				       LORAWAN_REGION);
+	if (status != LORAMAC_STATUS_OK) {
+		LOG_ERR("LoRaMacInitialization failed: %s",
+			lorawan_status2str(status));
+		return -EINVAL;
+	}
+
+	lorawan_nvm_save_settings();
+
+	return 0;
+}
+#endif
+
 static int lorawan_init(const struct device *dev)
 {
+	ARG_UNUSED(dev);
+
 	LoRaMacStatus_t status;
 
 	sys_slist_init(&dl_callbacks);
@@ -588,7 +676,13 @@ static int lorawan_init(const struct device *dev)
 	macPrimitives.MacMlmeIndication = MlmeIndication;
 	macCallbacks.GetBatteryLevel = getBatteryLevelLocal;
 	macCallbacks.GetTemperatureLevel = NULL;
-	macCallbacks.NvmDataChange = NULL;
+
+	if (IS_ENABLED(CONFIG_LORAWAN_NVM_NONE)) {
+		macCallbacks.NvmDataChange = NULL;
+	} else {
+		macCallbacks.NvmDataChange = lorawan_nvm_data_mgmt_event;
+	}
+
 	macCallbacks.MacProcessNotify = OnMacProcessNotify;
 
 	status = LoRaMacInitialization(&macPrimitives, &macCallbacks,
@@ -597,6 +691,11 @@ static int lorawan_init(const struct device *dev)
 		LOG_ERR("LoRaMacInitialization failed: %s",
 			lorawan_status2str(status));
 		return -EINVAL;
+	}
+
+	if (!IS_ENABLED(CONFIG_LORAWAN_NVM_NONE)) {
+		settings_subsys_init();
+		lorawan_nvm_data_restore();
 	}
 
 	LOG_DBG("LoRaMAC Initialized");

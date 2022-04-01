@@ -14,3 +14,9 @@ properties:
       required: true
     dio1-gpios:
       required: true
+    debug-toggle-gpios:
+      type: phandle-array
+      required: false
+      description: |
+        gpio to toggle for timing debug.
+

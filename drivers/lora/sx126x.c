@@ -185,15 +185,35 @@ uint8_t SX126xReadCommand(RadioCommands_t opcode,
 	return rx_req[1];
 }
 
+void togglesignal(uint32_t delay)
+{
+	int ret;
+
+	ret = sx12xx_configure_pin(debug_toggle, GPIO_OUTPUT_ACTIVE);
+	k_busy_wait(delay);
+	ret = sx12xx_configure_pin(debug_toggle, GPIO_OUTPUT_INACTIVE);
+}
+
 void SX126xWriteCommand(RadioCommands_t opcode, uint8_t *buffer, uint16_t size)
 {
 	uint8_t req[] = {
-		opcode,
+		opcode
 	};
+
+	if (opcode == 0x82)
+		togglesignal(400);
 
 	LOG_DBG("Issuing opcode 0x%x w. %" PRIu16 " bytes of data",
 		opcode, size);
+	//togglesignal(10);
 	sx126x_spi_transceive(req, NULL, sizeof(req), buffer, NULL, size);
+
+	/* HORRIBLE HACK --- I added this after many hours of debugging to find that
+	 * this delay here allows ack packets to be rx'd.  Without this hack the
+	 * Rx interrupt is a "rx timeout" interrupt and rx fails
+	 */
+	k_busy_wait(5000);
+	//togglesignal(30);
 }
 
 void SX126xReadBuffer(uint8_t offset, uint8_t *buffer, uint8_t size)
@@ -353,7 +373,11 @@ void SX126xSetRfTxPower(int8_t power)
 void SX126xWaitOnBusy(void)
 {
 	while (sx126x_is_busy(&dev_data)) {
+#if 0
+		k_busy_wait(500);
+#else
 		k_sleep(K_MSEC(1));
+#endif
 	}
 }
 
@@ -469,6 +493,8 @@ static int sx126x_lora_init(const struct device *dev)
 
 	return 0;
 }
+
+
 
 static const struct lora_driver_api sx126x_lora_api = {
 	.config = sx12xx_lora_config,

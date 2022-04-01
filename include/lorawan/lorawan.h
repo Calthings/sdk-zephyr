@@ -223,6 +223,18 @@ int lorawan_send(uint8_t port, uint8_t *data, uint8_t len, uint8_t flags);
 int lorawan_set_class(enum lorawan_class dev_class);
 
 /**
+ * @brief Get the current device class
+ *
+ * Get the current device class. This function may be called before
+ * or after a network connection has been established.
+ *
+ * @param dev_class Pointer to retrieve device class
+ *
+ * @return 0 if successful, negative errno code if failure
+ */
+int lorawan_get_class(enum lorawan_class *dev_class);
+
+/**
  * @brief Set the number of tries used for transmissions
  *
  * @param tries Number of tries to be used
@@ -256,6 +268,17 @@ void lorawan_enable_adr(bool enable);
 int lorawan_set_datarate(enum lorawan_datarate dr);
 
 /**
+ * @brief Get the current data rate
+ *
+ * Retrieve data rate in use.
+ *
+ * @param dr Ptr to returned Data rate
+ *
+ * @return 0 if successful, negative errno code if failure
+ */
+int lorawan_get_datarate(enum lorawan_datarate *dr);
+
+/**
  * @brief Get the minimum possible datarate
  *
  * The minimum possible datarate may change in response to a TxParamSetupReq
@@ -277,6 +300,29 @@ enum lorawan_datarate lorawan_get_min_datarate(void);
  */
 void lorawan_get_payload_sizes(uint8_t *max_next_payload_size,
 			       uint8_t *max_payload_size);
+
+/**
+ * @brief Override channel maks to include only sub-band 2 channels for region
+ */
+int lorawan_set_channel_mask_for_region(void);
+
+/**
+ * @brief Get the current settings of version and nonces
+ *
+ * Query the current version, device nonce, and join nonce
+ *
+ * @param Ptr to return version
+ * @param Ptr to return device nonce
+ * @param Ptr to return join nonce
+ */
+int lorawan_nvm_get_settings(uint32_t *pversion, uint16_t *pdev_nonce, uint16_t *pjoin_nonce);
+
+/**
+ * @brief Reset mac settings to defaults and save
+ *
+ * Use to unjoin / reset a node to pre-join conditions by resetting mac state
+ */
+int lorawan_nvm_reset_settings(void);
 
 #ifdef __cplusplus
 }
