@@ -1,0 +1,34 @@
+# Copyright (c) 2022 Level Home
+# SPDX-License-Identifier: Apache-2.0
+
+description: Dialog DA16200 WiFi Module on SPI
+
+compatible: "dialog,da16200"
+
+include: spi-device.yaml
+
+properties:
+    wake-gpios:
+      type: phandle-array
+      required: true
+      description: |
+        GPIO connected to the WAKE signal.
+
+    irq-gpios:
+      type: phandle-array
+      required: true
+      description: |
+        GPIO for OOB Interrupts (data available) from da16200
+
+    reset-gpios:
+      type: phandle-array
+      required: false
+      description: |
+        GPIO connected to the  NRESET signal.
+
+    rtc-power-gpios:
+      type: phandle-array
+      required: false
+      description: |
+        Power Enable for RTC.
+
