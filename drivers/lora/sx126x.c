@@ -384,6 +384,10 @@ void SX126xWaitOnBusy(void)
 	 */
 	uint32_t timeout;
 
+	if (dev_data.hardware_init_failed) {
+		return;
+	}
+
 	/* step 1, short busy wait, up to 15us */
 	if (!sx126x_is_busy(&dev_data)) {
 		return;
@@ -410,6 +414,7 @@ void SX126xWaitOnBusy(void)
 	}
 
 	if (sx126x_is_busy(&dev_data)) {
+		dev_data.hardware_init_failed = true;
 		LOG_ERR("SX126x Device not responding");
 	}
 }
@@ -517,6 +522,7 @@ static int sx126x_lora_init(const struct device *dev)
 	dev_data.spi_cfg.frequency = DT_INST_PROP(0, spi_max_frequency);
 	dev_data.spi_cfg.slave = DT_INST_REG_ADDR(0);
 
+	dev_data.hardware_init_failed = false;
 
 	ret = sx12xx_init(dev);
 	if (ret < 0) {

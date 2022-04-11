@@ -66,6 +66,7 @@ struct sx126x_data {
 #if HAVE_GPIO_CS
 	struct spi_cs_control spi_cs;
 #endif
+	bool hardware_init_failed;
 	RadioOperatingModes_t mode;
 };
 
