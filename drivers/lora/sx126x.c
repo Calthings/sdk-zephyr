@@ -372,12 +372,45 @@ void SX126xSetRfTxPower(int8_t power)
 
 void SX126xWaitOnBusy(void)
 {
-	while (sx126x_is_busy(&dev_data)) {
-#if 0
-		k_busy_wait(500);
-#else
+	/* BDD/Level - busy is typically active-high occasionally, and usally for
+ 	 * one of two durations: the short and long.
+	 *  short is 5 to 15 microseconds
+	 *  long is 70 to 90 microseconds
+	 * a task switch is probably inappropriate for a burst of short busys
+	 * but might be appropriate for a long busy.
+	 * A simple 1ms sleeps works, but a better wait is more performant
+	 * and I added the timeout logic since this is called int the init
+	 * code which is called at kernel boot time and hangs if there is no board
+	 */
+	uint32_t timeout;
+
+	/* step 1, short busy wait, up to 15us */
+	if (!sx126x_is_busy(&dev_data)) {
+		return;
+	}
+	k_busy_wait(5); // 5us
+	if (!sx126x_is_busy(&dev_data)) {
+		return;
+	}
+	k_busy_wait(5); // 10us
+	if (!sx126x_is_busy(&dev_data)) {
+		return;
+	}
+	k_busy_wait(5); // 15us
+	if (!sx126x_is_busy(&dev_data)) {
+		return;
+	}
+
+	/* step 2, sleep-wait */
+	for (timeout = 0; timeout < 100; timeout++) {
+		if (!sx126x_is_busy(&dev_data)) {
+			return;
+		}
 		k_sleep(K_MSEC(1));
-#endif
+	}
+
+	if (sx126x_is_busy(&dev_data)) {
+		LOG_ERR("SX126x Device not responding");
 	}
 }
 
