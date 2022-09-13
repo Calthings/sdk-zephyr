@@ -365,44 +365,29 @@ void SX126xSetRfTxPower(int8_t power)
 void SX126xWaitOnBusy(void)
 {
 #if 0
+	while (sx126x_is_busy(&dev_data) && attempts++ < 10)
+	{
 		k_busy_wait(500);
+	}
 #else
 	/* BDD/Level - busy is typically active-high occasionally, and usually for
  	 * one of two durations: the short and long.
 	 *  short is 5 to 15 microseconds
 	 *  long is 70 to 90 microseconds
-	 * a task switch is probably inappropriate for a burst of short busys
-	 * but might be appropriate for a long busy.
-	 * A simple 1ms sleeps works, but a better wait is more performant
-	 * and I added the timeout logic since this is called in the init
-	 * code which is called at kernel boot time and hangs if there is no board
+	 * blocking the calling thread more than 200us will break the
+	 * inter-core comms on a 5340 so.. don't do that
 	 */
 	uint32_t timeout;
 
 	/* step 1, short busy wait, up to 15us */
-	for (timeout = 0; timeout < 4; timeout++)
+	for (timeout = 0; timeout < 40; timeout++)
 	{
 		if (!sx126x_is_busy(&dev_data)) {
 			return;
 		}
 		k_busy_wait(5); // 5us
 	}
-
-	/* step 2, sleep-wait
-	 *  the radio is never busy for even > 1ms so this
-	 *  is a bit overkill?
-	 */
-	for (timeout = 0; timeout < 10; timeout++) {
-		if (!sx126x_is_busy(&dev_data)) {
-			return;
-		}
-		k_sleep(K_MSEC(1));
 #endif
-	}
-
-	if (sx126x_is_busy(&dev_data)) {
-		LOG_DBG("SX126x Device not responding");
-	}
 }
 
 void SX126xWakeup(void)
