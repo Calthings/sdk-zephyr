@@ -380,20 +380,12 @@ void SX126xWaitOnBusy(void)
 	uint32_t timeout;
 
 	/* step 1, short busy wait, up to 15us */
-	if (!sx126x_is_busy(&dev_data)) {
-		return;
-	}
-	k_busy_wait(5); // 5us
-	if (!sx126x_is_busy(&dev_data)) {
-		return;
-	}
-	k_busy_wait(5); // 10us
-	if (!sx126x_is_busy(&dev_data)) {
-		return;
-	}
-	k_busy_wait(5); // 15us
-	if (!sx126x_is_busy(&dev_data)) {
-		return;
+	for (timeout = 0; timeout < 4; timeout++)
+	{
+		if (!sx126x_is_busy(&dev_data)) {
+			return;
+		}
+		k_busy_wait(5); // 5us
 	}
 
 	/* step 2, sleep-wait
@@ -409,7 +401,7 @@ void SX126xWaitOnBusy(void)
 	}
 
 	if (sx126x_is_busy(&dev_data)) {
-		LOG_INF("SX126x Device not responding");
+		LOG_DBG("SX126x Device not responding");
 	}
 }
 
