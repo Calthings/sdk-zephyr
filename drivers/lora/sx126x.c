@@ -374,19 +374,26 @@ void SX126xWaitOnBusy(void)
  	 * one of two durations: the short and long.
 	 *  short is 5 to 15 microseconds
 	 *  long is 70 to 90 microseconds
-	 * blocking the calling thread more than 200us will break the
-	 * inter-core comms on a 5340 so.. don't do that
 	 */
+	static int s_timeouts;
 	uint32_t timeout;
 
-	/* step 1, short busy wait, up to 15us */
-	for (timeout = 0; timeout < 40; timeout++)
-	{
+	if (s_timeouts > 20) {
+		if (s_timeouts < 25) {
+			s_timeouts++;
+			LOG_INF("No radio for busy");
+		}
+		return;
+	}
+
+	for (timeout = 0; timeout < 400; timeout++)	{
 		if (!sx126x_is_busy(&dev_data)) {
 			return;
 		}
-		k_busy_wait(5); // 5us
+		k_busy_wait(50);
 	}
+
+	s_timeouts++;
 #endif
 }
 
