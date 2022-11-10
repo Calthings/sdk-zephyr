@@ -396,8 +396,6 @@ config MBEDTLS_ENTROPY_ENABLED
 
 endif
 
-endif
-
 config MBEDTLS_OPENTHREAD_OPTIMIZATIONS_ENABLED
 	bool "MbedTLS optimizations for OpenThread"
 	depends on NET_L2_OPENTHREAD
