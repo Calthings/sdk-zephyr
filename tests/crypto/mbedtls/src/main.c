@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <app_memory/partitions.h>
+#include <zephyr/ztest.h>
+#include <zephyr/app_memory/partitions.h>
 
 extern void test_mbedtls(void);
 

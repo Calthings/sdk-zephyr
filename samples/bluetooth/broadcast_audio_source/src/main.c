@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/audio/audio.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/audio/audio.h>
 
 /* When BROADCAST_ENQUEUE_COUNT > 1 we can enqueue enough buffers to ensure that
  * the controller is never idle
@@ -17,7 +17,9 @@ BUILD_ASSERT(CONFIG_BT_ISO_TX_BUF_COUNT >= TOTAL_BUF_NEEDED,
 	     "CONFIG_BT_ISO_TX_BUF_COUNT should be at least "
 	     "BROADCAST_ENQUEUE_COUNT * CONFIG_BT_AUDIO_BROADCAST_SRC_STREAM_COUNT");
 
-static struct bt_audio_lc3_preset preset_16_2_1 = BT_AUDIO_LC3_BROADCAST_PRESET_16_2_1;
+static struct bt_audio_lc3_preset preset_16_2_1 =
+	BT_AUDIO_LC3_BROADCAST_PRESET_16_2_1(BT_AUDIO_LOCATION_FRONT_LEFT,
+					     BT_AUDIO_CONTEXT_TYPE_UNSPECIFIED);
 static struct bt_audio_stream streams[CONFIG_BT_AUDIO_BROADCAST_SRC_STREAM_COUNT];
 static struct bt_audio_broadcast_source *broadcast_source;
 
@@ -25,6 +27,7 @@ NET_BUF_POOL_FIXED_DEFINE(tx_pool,
 			  TOTAL_BUF_NEEDED,
 			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU), 8, NULL);
 static uint8_t mock_data[CONFIG_BT_ISO_TX_MTU];
+static uint32_t seq_num;
 static bool stopping;
 
 static K_SEM_DEFINE(sem_started, 0U, ARRAY_SIZE(streams));
@@ -61,7 +64,8 @@ static void stream_sent_cb(struct bt_audio_stream *stream)
 
 	net_buf_reserve(buf, BT_ISO_CHAN_SEND_RESERVE);
 	net_buf_add_mem(buf, mock_data, preset_16_2_1.qos.sdu);
-	ret = bt_audio_stream_send(stream, buf);
+	ret = bt_audio_stream_send(stream, buf, seq_num++,
+				   BT_ISO_TIMESTAMP_NONE);
 	if (ret < 0) {
 		/* This will end broadcasting on this stream. */
 		printk("Unable to broadcast data on %p: %d\n", stream, ret);
@@ -75,7 +79,7 @@ static void stream_sent_cb(struct bt_audio_stream *stream)
 	}
 }
 
-struct bt_audio_stream_ops stream_ops = {
+static struct bt_audio_stream_ops stream_ops = {
 	.started = stream_started_cb,
 	.stopped = stream_stopped_cb,
 	.sent = stream_sent_cb
@@ -83,6 +87,7 @@ struct bt_audio_stream_ops stream_ops = {
 
 void main(void)
 {
+	struct bt_audio_stream *streams_p[ARRAY_SIZE(streams)];
 	int err;
 
 	err = bt_enable(NULL);
@@ -94,6 +99,7 @@ void main(void)
 
 	for (size_t i = 0U; i < ARRAY_SIZE(streams); i++) {
 		streams[i].ops = &stream_ops;
+		streams_p[i] = &streams[i];
 	}
 
 	for (size_t i = 0U; i < ARRAY_SIZE(mock_data); i++) {
@@ -103,8 +109,8 @@ void main(void)
 
 	while (true) {
 		printk("Creating broadcast source\n");
-		err = bt_audio_broadcast_source_create(streams,
-						       ARRAY_SIZE(streams),
+		err = bt_audio_broadcast_source_create(streams_p,
+						       ARRAY_SIZE(streams_p),
 						       &preset_16_2_1.codec,
 						       &preset_16_2_1.qos,
 						       &broadcast_source);
@@ -160,5 +166,6 @@ void main(void)
 		}
 		printk("Broadcast source deleted\n");
 		broadcast_source = NULL;
+		seq_num = 0;
 	}
 }

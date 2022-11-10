@@ -12,13 +12,13 @@
  * UART has two wires for RX and TX, and does not provide CTS or RTS.
  */
 
-#include <kernel.h>
-#include <arch/cpu.h>
-#include <drivers/clock_control/arm_clock_control.h>
-#include <sys/__assert.h>
-#include <init.h>
-#include <drivers/uart.h>
-#include <linker/sections.h>
+#include <zephyr/kernel.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/drivers/clock_control/arm_clock_control.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/init.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/linker/sections.h>
 
 /* UART registers struct */
 struct uart_cmsdk_apb {
@@ -126,10 +126,12 @@ static int uart_cmsdk_apb_init(const struct device *dev)
 
 #ifdef CONFIG_CLOCK_CONTROL
 	/* Enable clock for subsystem */
-	const struct device *clk =
-		device_get_binding(CONFIG_ARM_CLOCK_CONTROL_DEV_NAME);
-
+	const struct device *clk = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_IDX(0, 1));
 	struct uart_cmsdk_apb_dev_data * const data = dev->data;
+
+	if (!device_is_ready(clk)) {
+		return -ENODEV;
+	}
 
 #ifdef CONFIG_SOC_SERIES_BEETLE
 	clock_control_on(clk, (clock_control_subsys_t *) &data->uart_cc_as);

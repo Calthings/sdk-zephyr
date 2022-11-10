@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
 #include <stdio.h>
-#include <app_memory/app_memdomain.h>
+
+
+#include <zephyr/ztest.h>
+#include <zephyr/app_memory/app_memdomain.h>
 #ifdef CONFIG_USERSPACE
-#include <sys/libc-hooks.h>
+#include <zephyr/sys/libc-hooks.h>
 #endif
-#include <sys/reboot.h>
-#include <logging/log_ctrl.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/logging/log_ctrl.h>
 
 #ifdef KERNEL
 static struct k_thread ztest_thread;
@@ -43,17 +45,8 @@ static ZTEST_BMEM int test_status;
  * @param file Filename to check
  * @returns Shortened filename, or @file if it could not be shortened
  */
-const char *ztest_relative_filename(const char *file)
+const char *__weak ztest_relative_filename(const char *file)
 {
-#ifdef CONFIG_ARCH_POSIX
-	const char *cwd;
-	char buf[200];
-
-	cwd = getcwd(buf, sizeof(buf));
-	if (cwd && strlen(file) > strlen(cwd) &&
-	    !strncmp(file, cwd, strlen(cwd)))
-		return file + strlen(cwd) + 1; /* move past the trailing '/' */
-#endif
 	return file;
 }
 
@@ -269,7 +262,7 @@ static void init_testing(void)
 	signal(SIGSEGV, handle_signal);
 
 	if (setjmp(stack_fail)) {
-		PRINT("Test suite crashed.");
+		PRINT("TESTSUITE crashed.");
 		exit(1);
 	}
 }
@@ -381,6 +374,7 @@ static int run_test(struct unit_test *test)
 				test->thread_options | K_INHERIT_PERMS,
 					K_FOREVER);
 
+		k_thread_access_grant(&ztest_thread, test);
 		if (test->name != NULL) {
 			k_thread_name_set(&ztest_thread, test->name);
 		}
@@ -468,7 +462,7 @@ int ztest_run_registered_test_suites(const void *state)
 	int count = 0;
 
 	for (ptr = _ztest_suite_node_list_start; ptr < _ztest_suite_node_list_end; ++ptr) {
-		struct ztest_suite_stats *stats = &ptr->stats;
+		struct ztest_suite_stats *stats = ptr->stats;
 		bool should_run = true;
 
 		if (ptr->predicate != NULL) {
@@ -498,7 +492,7 @@ void ztest_verify_all_registered_test_suites_ran(void)
 	struct ztest_suite_node *ptr;
 
 	for (ptr = _ztest_suite_node_list_start; ptr < _ztest_suite_node_list_end; ++ptr) {
-		if (ptr->stats.run_count < 1) {
+		if (ptr->stats->run_count < 1) {
 			PRINT("ERROR: Test '%s' did not run.\n", ptr->name);
 			all_tests_run = false;
 		}
@@ -544,12 +538,15 @@ void main(void)
 	}
 #ifdef Z_MALLOC_PARTITION_EXISTS
 	/* Allow access to malloc() memory */
-	ret = k_mem_domain_add_partition(&k_mem_domain_default,
-					 &z_malloc_partition);
-	if (ret != 0) {
-		PRINT("ERROR: failed to add z_malloc_partition to mem domain (%d)\n",
-		      ret);
-		k_oops();
+	if (z_malloc_partition.size != 0) {
+		ret = k_mem_domain_add_partition(&k_mem_domain_default,
+						 &z_malloc_partition);
+		if (ret != 0) {
+			PRINT("ERROR: failed to add z_malloc_partition"
+			      " to mem domain (%d)\n",
+			      ret);
+			k_oops();
+		}
 	}
 #endif
 #endif /* CONFIG_USERSPACE */

@@ -140,6 +140,7 @@ html_context = {
     "current_version": version,
     "versions": (
         ("latest", "/"),
+        ("3.1.0", "/3.1.0/"),
         ("3.0.0", "/3.0.0/"),
         ("2.7.0", "/2.7.0/"),
         ("2.6.0", "/2.6.0/"),
@@ -279,8 +280,8 @@ graphviz_dot_args = [
 # -- Linkcheck options ----------------------------------------------------
 
 extlinks = {
-    "jira": ("https://jira.zephyrproject.org/browse/%s", ""),
-    "github": ("https://github.com/zephyrproject-rtos/zephyr/issues/%s", ""),
+    "jira": ("https://jira.zephyrproject.org/browse/%s", "JIRA #%s"),
+    "github": ("https://github.com/zephyrproject-rtos/zephyr/issues/%s", "GitHub #%s"),
 }
 
 linkcheck_timeout = 30

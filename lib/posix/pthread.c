@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <kernel.h>
+#include <zephyr/kernel.h>
 #include <stdio.h>
-#include <sys/atomic.h>
+#include <zephyr/sys/atomic.h>
 #include <ksched.h>
-#include <wait_q.h>
-#include <posix/pthread.h>
-#include <sys/slist.h>
+#include <zephyr/wait_q.h>
+#include <zephyr/posix/pthread.h>
+#include <zephyr/sys/slist.h>
 
 #define PTHREAD_INIT_FLAGS	PTHREAD_CANCEL_ENABLE
 #define PTHREAD_CANCELED	((void *) -1)
@@ -150,7 +150,7 @@ int pthread_create(pthread_t *newthread, const pthread_attr_t *attr,
 	for (pthread_num = 0;
 	    pthread_num < CONFIG_MAX_PTHREAD_COUNT; pthread_num++) {
 		thread = &posix_thread_pool[pthread_num];
-		if (thread->state == PTHREAD_TERMINATED) {
+		if (thread->state == PTHREAD_EXITED || thread->state == PTHREAD_TERMINATED) {
 			thread->state = PTHREAD_JOINABLE;
 			break;
 		}

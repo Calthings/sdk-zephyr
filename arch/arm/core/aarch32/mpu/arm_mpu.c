@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <device.h>
-#include <init.h>
-#include <kernel.h>
-#include <soc.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
+#include <zephyr/kernel.h>
 #include "arm_core_mpu_dev.h"
-#include <linker/linker-defs.h>
+#include <zephyr/linker/linker-defs.h>
 #include <kernel_arch_data.h>
 
 #define LOG_LEVEL CONFIG_MPU_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(mpu);
 
 #if defined(CONFIG_ARMV8_M_BASELINE) || defined(CONFIG_ARMV8_M_MAINLINE)
@@ -44,11 +43,12 @@ static uint8_t static_regions_num;
 	defined(CONFIG_CPU_CORTEX_M3) || \
 	defined(CONFIG_CPU_CORTEX_M4) || \
 	defined(CONFIG_CPU_CORTEX_M7) || \
-	defined(CONFIG_CPU_AARCH32_CORTEX_R)
+	defined(CONFIG_ARMV7_R)
 #include "arm_mpu_v7_internal.h"
 #elif defined(CONFIG_CPU_CORTEX_M23) || \
 	defined(CONFIG_CPU_CORTEX_M33) || \
-	defined(CONFIG_CPU_CORTEX_M55)
+	defined(CONFIG_CPU_CORTEX_M55) || \
+	defined(CONFIG_AARCH32_ARMV8_R)
 #include "arm_mpu_v8_internal.h"
 #else
 #error "Unsupported ARM CPU"
@@ -85,7 +85,7 @@ static int mpu_configure_region(const uint8_t index,
 
 	/* Populate internal ARM MPU region configuration structure. */
 	region_conf.base = new_region->start;
-#if defined(CONFIG_CPU_AARCH32_CORTEX_R)
+#if defined(CONFIG_ARMV7_R)
 	region_conf.size = size_to_mpu_rasr_size(new_region->size);
 #endif
 	get_region_attr_from_mpu_partition_info(&region_conf.attr,
@@ -148,9 +148,10 @@ void arm_core_mpu_enable(void)
 
 	val = __get_SCTLR();
 	val |= SCTLR_MPU_ENABLE;
+	__set_SCTLR(val);
+
 	/* Make sure that all the registers are set before proceeding */
 	__DSB();
-	__set_SCTLR(val);
 	__ISB();
 }
 
@@ -161,11 +162,15 @@ void arm_core_mpu_disable(void)
 {
 	uint32_t val;
 
-	val = __get_SCTLR();
-	val &= ~SCTLR_MPU_ENABLE;
 	/* Force any outstanding transfers to complete before disabling MPU */
 	__DSB();
+
+	val = __get_SCTLR();
+	val &= ~SCTLR_MPU_ENABLE;
 	__set_SCTLR(val);
+
+	/* Make sure that all the registers are set before proceeding */
+	__DSB();
 	__ISB();
 }
 #else

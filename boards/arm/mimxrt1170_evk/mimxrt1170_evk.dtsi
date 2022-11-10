@@ -10,12 +10,15 @@
 	aliases {
 		led0 = &green_led;
 		sw0 = &user_button;
+		magn0 = &fxos8700;
+		accel0 = &fxos8700;
+		sdhc0 = &usdhc1;
 	};
 
 	leds {
 		compatible = "gpio-leds";
 		green_led: led-1 {
-			gpios = <&gpio9 3 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio9 3 GPIO_ACTIVE_HIGH>;
 			label = "User LED D6";
 		};
 	};
@@ -42,7 +45,7 @@
 	pinctrl-0 = <&pinmux_lpi2c5>;
 	pinctrl-names = "default";
 
-	fxos8700@1f {
+	fxos8700: fxos8700@1f {
 		compatible = "nxp,fxos8700";
 		reg = <0x1f>;
 		label = "FXOS8700";

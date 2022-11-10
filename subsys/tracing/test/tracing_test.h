@@ -5,8 +5,8 @@
  */
 #ifndef ZEPHYR_TRACE_TEST_H
 #define ZEPHYR_TRACE_TEST_H
-#include <kernel.h>
-#include <init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/init.h>
 
 #define sys_port_trace_k_thread_foreach_enter() sys_trace_k_thread_foreach_enter(user_cb, user_data)
 #define sys_port_trace_k_thread_foreach_exit() sys_trace_k_thread_foreach_exit(user_cb, user_data)
@@ -421,10 +421,10 @@
 	sys_trace_k_timer_status_sync_exit(timer, result)
 
 #define sys_port_trace_k_event_init(event) sys_trace_k_event_init(event)
-#define sys_port_trace_k_event_post_enter(event, events, accumulate)   \
-	sys_trace_k_event_post_enter(event, events, accumulate)
-#define sys_port_trace_k_event_post_exit(event, events, accumulate)   \
-	sys_trace_k_event_post_exit(event, events, accumulate)
+#define sys_port_trace_k_event_post_enter(event, events, events_mask)   \
+	sys_trace_k_event_post_enter(event, events, events_mask)
+#define sys_port_trace_k_event_post_exit(event, events, events_mask)   \
+	sys_trace_k_event_post_exit(event, events, events_mask)
 #define sys_port_trace_k_event_wait_enter(event, events, options, timeout)   \
 	sys_trace_k_event_wait_enter(event, events, options, timeout)
 #define sys_port_trace_k_event_wait_blocking(event, events, options, timeout) \

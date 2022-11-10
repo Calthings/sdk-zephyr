@@ -4,9 +4,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <zephyr.h>
-#include <device.h>
-#include <ztest.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/device.h>
+#include <zephyr/ztest.h>
 
 void test_k_busy_wait(void)
 {

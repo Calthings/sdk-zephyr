@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <pm/device.h>
-#include <pm/device_runtime.h>
+#include <zephyr/ztest.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #define NUMBER_OF_DEVICES 3
 

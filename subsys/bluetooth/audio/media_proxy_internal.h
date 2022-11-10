@@ -9,7 +9,7 @@
 
 /** @brief Internal APIs for Bluetooth Media Control */
 
-#include <bluetooth/audio/media_proxy.h>
+#include <zephyr/bluetooth/audio/media_proxy.h>
 
 #define MPL_NO_TRACK_ID 0
 
@@ -21,7 +21,7 @@
 		if (IS_ENABLED(CONFIG_BT_DEBUG_MCS)) { \
 			char t[BT_OTS_OBJ_ID_STR_LEN]; \
 			(void)bt_ots_obj_id_to_str(id64, t, sizeof(t)); \
-			BT_DBG(text "0x%s", log_strdup(t)); \
+			BT_DBG(text "0x%s", t); \
 		} \
 	} while (0)
 
@@ -56,7 +56,7 @@ struct media_proxy_sctrl_cbs {
 
 	void (*media_state)(uint8_t state);
 
-	void (*command)(struct mpl_cmd_ntf cmd_ntf);
+	void (*command)(const struct mpl_cmd_ntf *cmd_ntf);
 
 	void (*commands_supported)(uint32_t opcodes);
 
@@ -114,12 +114,12 @@ uint16_t media_proxy_sctrl_get_playing_orders_supported(void);
 
 uint8_t media_proxy_sctrl_get_media_state(void);
 
-void media_proxy_sctrl_send_command(struct mpl_cmd command);
+void media_proxy_sctrl_send_command(const struct mpl_cmd *command);
 
 uint32_t media_proxy_sctrl_get_commands_supported(void);
 
 #ifdef CONFIG_BT_OTS
-void media_proxy_sctrl_send_search(struct mpl_search search);
+void media_proxy_sctrl_send_search(const struct mpl_search *search);
 
 uint64_t media_proxy_sctrl_get_search_results_id(void);
 #endif /* CONFIG_BT_OTS */

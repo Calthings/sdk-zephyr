@@ -3,8 +3,8 @@
 
 /dts-v1/;
 
-#include <riscv32-fe310.dtsi>
-#include <dt-bindings/i2c/i2c.h>
+#include <sifive/riscv32-fe310.dtsi>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 #include "hifive1_revb-pinctrl.dtsi"
 
 / {
@@ -92,12 +92,12 @@
 	current-speed = <115200>;
 };
 
+/* disabled (used by Flash ROM by default) */
 &spi0 {
-	status = "okay";
-
 	reg = <0x10014000 0x1000 0x20010000 0x3c0900>;
 	flash0: flash@0 {
 		compatible = "issi,is25lp128", "jedec,spi-nor";
+		status = "disabled";
 		size = <134217728>;
 		label = "FLASH0";
 		jedec-id = [96 60 18];
@@ -108,10 +108,20 @@
 
 &spi1 {
 	status = "okay";
+	pinctrl-0 = <&spi1_cs0_default
+		     &spi1_mosi_default
+		     &spi1_miso_default
+		     &spi1_sck_default>;
+	pinctrl-names = "default";
 };
 
 &spi2 {
 	status = "okay";
+	pinctrl-0 = <&spi1_cs2_default
+		     &spi1_mosi_default
+		     &spi1_miso_default
+		     &spi1_sck_default>;
+	pinctrl-names = "default";
 };
 
 &pwm0 {

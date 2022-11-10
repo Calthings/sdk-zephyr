@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef ZEPHYR_INCLUDE_MATH_ILOG2_H_
+#define ZEPHYR_INCLUDE_MATH_ILOG2_H_
+
 #include <stdint.h>
 
-#include <toolchain.h>
-#include <arch/common/ffs.h>
-#include <sys/util.h>
+#include <zephyr/toolchain.h>
+#include <zephyr/arch/common/ffs.h>
+#include <zephyr/sys/util.h>
 
 /**
  * @file
@@ -93,3 +96,5 @@
 		ilog2_compile_time_const_u32(n) :	\
 		find_msb_set(n) - 1			\
 	)
+
+#endif /* ZEPHYR_INCLUDE_MATH_ILOG2_H_ */

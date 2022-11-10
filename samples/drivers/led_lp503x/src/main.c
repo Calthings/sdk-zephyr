@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <device.h>
+#include <zephyr/device.h>
 #include <errno.h>
-#include <drivers/led.h>
-#include <drivers/led/lp503x.h>
-#include <sys/util.h>
-#include <zephyr.h>
+#include <zephyr/drivers/led.h>
+#include <zephyr/drivers/led/lp503x.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/zephyr.h>
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
 #define MAX_BRIGHTNESS	100
@@ -239,16 +239,18 @@ void main(void)
 
 		/* Display LED information. */
 		printk("Found LED %d", led);
-		if (info->label)
+		if (info->label) {
 			printk(" - %s", info->label);
+		}
 		printk(" - index:%d", info->index);
 		printk(" - %d colors", info->num_colors);
 		if (!info->color_mapping) {
 			continue;
 		}
 		printk(" - %d", info->color_mapping[0]);
-		for (col = 1; col < info->num_colors; col++)
+		for (col = 1; col < info->num_colors; col++) {
 			printk(":%d", info->color_mapping[col]);
+		}
 		printk("\n");
 	}
 	num_leds = led;

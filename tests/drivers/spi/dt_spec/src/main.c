@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <devicetree.h>
-#include <device.h>
-#include <drivers/spi.h>
-#include <logging/log.h>
+#include <zephyr/ztest.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/spi.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(test, CONFIG_LOG_DEFAULT_LEVEL);
 

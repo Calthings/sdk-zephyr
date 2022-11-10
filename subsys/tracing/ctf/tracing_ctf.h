@@ -7,9 +7,9 @@
 #ifndef _TRACE_CTF_H
 #define _TRACE_CTF_H
 
-#include <kernel.h>
-#include <kernel_structs.h>
-#include <init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/kernel_structs.h>
+#include <zephyr/init.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -314,8 +314,8 @@ extern "C" {
 #define sys_port_trace_k_timer_status_sync_exit(timer, result)
 
 #define sys_port_trace_k_event_init(event)
-#define sys_port_trace_k_event_post_enter(event, events, accumulate)
-#define sys_port_trace_k_event_post_exit(event, events, accumulate)
+#define sys_port_trace_k_event_post_enter(event, events, events_mask)
+#define sys_port_trace_k_event_post_exit(event, events, events_mask)
 #define sys_port_trace_k_event_wait_enter(event, events, options, timeout)
 #define sys_port_trace_k_event_wait_blocking(event, events, options, timeout)
 #define sys_port_trace_k_event_wait_exit(event, events, ret)

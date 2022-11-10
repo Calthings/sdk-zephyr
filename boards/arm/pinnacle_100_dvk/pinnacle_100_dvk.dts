@@ -72,6 +72,9 @@
 		sw1 = &button2;
 		sw2 = &button3;
 		sw3 = &button4;
+		mcuboot-button0 = &button1;
+		mcuboot-led0 = &led1;
+		watchdog0 = &wdt0;
 	};
 };
 
@@ -110,11 +113,10 @@
 	hl7800 {
 		compatible = "swir,hl7800";
 		status = "okay";
-		label = "hl7800";
-		mdm-reset-gpios = <&gpio1 15 0>;
-		mdm-wake-gpios = <&gpio1 13 0>;
-		mdm-pwr-on-gpios = <&gpio1 2 0>;
-		mdm-fast-shutd-gpios = <&gpio1 14 0>;
+		mdm-reset-gpios = <&gpio1 15 (GPIO_OPEN_DRAIN | GPIO_ACTIVE_LOW)>;
+		mdm-wake-gpios = <&gpio1 13 (GPIO_OPEN_SOURCE | GPIO_ACTIVE_HIGH)>;
+		mdm-pwr-on-gpios = <&gpio1 2 (GPIO_OPEN_DRAIN | GPIO_ACTIVE_LOW)>;
+		mdm-fast-shutd-gpios = <&gpio1 14 (GPIO_OPEN_DRAIN | GPIO_ACTIVE_LOW)>;
 		mdm-vgpio-gpios = <&gpio1 11 0>;
 		mdm-uart-dsr-gpios = <&gpio0 25 0>;
 		mdm-uart-cts-gpios = <&gpio0 15 0>;
@@ -132,7 +134,6 @@
 	bme680@76 {
 		compatible = "bosch,bme680";
 		status = "okay";
-		label = "BME680";
 		reg = <0x76>;
 	};
 };
@@ -165,7 +166,6 @@
 		writeoc = "pp4io";
 		readoc = "read4io";
 		sck-frequency = <8000000>;
-		label = "MX25R64";
 		jedec-id = [c2 28 17];
 		size = <67108864>;
 		has-dpd;
@@ -183,7 +183,7 @@
 		/* 96K */
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x000000000 0x00018000>;
+			reg = <0x00000000 0x00018000>;
 		};
 		/* 896K */
 		slot0_partition: partition@18000 {
@@ -216,7 +216,7 @@
 		/* 896K */
 		slot1_partition: partition@0 {
 			label = "image-1";
-			reg = <0x0000000 0x000E0000>;
+			reg = <0x00000000 0x000E0000>;
 		};
 		/* 128K */
 		scratch_partition: partition@E0000 {
@@ -226,7 +226,7 @@
 		/* 7MB */
 		lfs_partition: partition@100000 {
 			label = "lfs_storage";
-			reg = <0x00100000 0x000700000>;
+			reg = <0x00100000 0x00700000>;
 		};
 	};
 };

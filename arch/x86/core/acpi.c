@@ -2,9 +2,9 @@
  * Copyright (c) 2020 Intel Corporation
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <kernel.h>
-#include <arch/x86/acpi.h>
-#include <arch/x86/efi.h>
+#include <zephyr/kernel.h>
+#include <zephyr/arch/x86/acpi.h>
+#include <zephyr/arch/x86/efi.h>
 
 static struct acpi_rsdp *rsdp;
 static bool is_rsdp_searched;
@@ -149,7 +149,7 @@ void *z_acpi_find_table(uint32_t signature)
 		return NULL;
 	}
 
-	if (rsdp->rsdt_ptr) {
+	if (rsdp->rsdt_ptr != 0U) {
 		z_phys_map((uint8_t **)&rsdt, rsdp->rsdt_ptr, sizeof(*rsdt), 0);
 		tbl_found = false;
 
@@ -191,7 +191,7 @@ void *z_acpi_find_table(uint32_t signature)
 		return NULL;
 	}
 
-	if (rsdp->xsdt_ptr) {
+	if (rsdp->xsdt_ptr != 0ULL) {
 		z_phys_map((uint8_t **)&xsdt, rsdp->xsdt_ptr, sizeof(*xsdt), 0);
 
 		tbl_found = false;

@@ -7,8 +7,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <sys/byteorder.h>
-#include <bluetooth/hci.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/bluetooth/hci.h>
 #include <soc.h>
 
 #include "hal/cpu.h"
@@ -48,9 +48,9 @@
 static int init_reset(void);
 static int prepare_cb(struct lll_prepare_param *p);
 static void isr_done(void *param);
-#if defined(CONFIG_BT_CTLR_ADV_PDU_BACK2BACK)
+#if defined(CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK)
 static void isr_tx_chain(void *param);
-#endif /* CONFIG_BT_CTLR_ADV_PDU_BACK2BACK */
+#endif /* CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK */
 static void isr_tx_rx(void *param);
 static void isr_rx(void *param);
 static inline int isr_rx_pdu(struct lll_adv_aux *lll_aux, uint8_t phy_flags_rx,
@@ -255,7 +255,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 			ARG_UNUSED(upd);
 		}
 
-#if defined(CONFIG_BT_CTLR_ADV_PDU_BACK2BACK)
+#if defined(CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK)
 	} else if (sec_pdu->adv_ext_ind.ext_hdr_len &&
 		   sec_pdu->adv_ext_ind.ext_hdr.aux_ptr) {
 		lll->last_pdu = sec_pdu;
@@ -264,7 +264,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 		radio_tmr_tifs_set(EVENT_B2B_MAFS_US);
 		radio_switch_complete_and_b2b_tx(phy_s, lll_adv->phy_flags,
 						 phy_s, lll_adv->phy_flags);
-#endif /* CONFIG_BT_CTLR_ADV_PDU_BACK2BACK */
+#endif /* CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK */
 
 	} else {
 		radio_isr_set(isr_done, lll);
@@ -331,7 +331,7 @@ static void isr_done(void *param)
 	lll_isr_cleanup(param);
 }
 
-#if defined(CONFIG_BT_CTLR_ADV_PDU_BACK2BACK)
+#if defined(CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK)
 static void isr_tx_chain(void *param)
 {
 	struct lll_adv_aux *lll_aux;
@@ -401,7 +401,7 @@ static void isr_tx_chain(void *param)
 		lll_prof_send();
 	}
 }
-#endif /* CONFIG_BT_CTLR_ADV_PDU_BACK2BACK */
+#endif /* CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK */
 
 static void isr_tx_rx(void *param)
 {
@@ -509,13 +509,18 @@ static void isr_rx(void *param)
 		phy_flags_rx = radio_phy_flags_rx_get();
 		devmatch_ok = radio_filter_has_match();
 		devmatch_id = radio_filter_match_get();
-		irkmatch_ok = radio_ar_has_match();
-		irkmatch_id = radio_ar_match_get();
+		if (IS_ENABLED(CONFIG_BT_CTLR_PRIVACY)) {
+			irkmatch_ok = radio_ar_has_match();
+			irkmatch_id = radio_ar_match_get();
+		} else {
+			irkmatch_ok = 0U;
+			irkmatch_id = FILTER_IDX_NONE;
+		}
 		rssi_ready = radio_rssi_is_ready();
 	} else {
 		crc_ok = devmatch_ok = irkmatch_ok = rssi_ready =
 			phy_flags_rx = 0U;
-		devmatch_id = irkmatch_id = 0xFF;
+		devmatch_id = irkmatch_id = FILTER_IDX_NONE;
 	}
 
 	/* Clear radio status and events */
@@ -602,7 +607,7 @@ static inline int isr_rx_pdu(struct lll_adv_aux *lll_aux, uint8_t phy_flags_rx,
 
 		if (0) {
 
-#if defined(CONFIG_BT_CTLR_ADV_PDU_BACK2BACK)
+#if defined(CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK)
 		} else if (sr_pdu->adv_ext_ind.ext_hdr_len &&
 			   sr_pdu->adv_ext_ind.ext_hdr.aux_ptr) {
 			lll_aux->last_pdu = sr_pdu;
@@ -617,7 +622,7 @@ static inline int isr_rx_pdu(struct lll_adv_aux *lll_aux, uint8_t phy_flags_rx,
 			radio_tmr_end_capture();
 #endif /* HAL_RADIO_GPIO_HAVE_PA_PIN */
 
-#endif /* CONFIG_BT_CTLR_ADV_PDU_BACK2BACK */
+#endif /* CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK */
 
 		} else {
 			radio_isr_set(isr_done, lll_aux);

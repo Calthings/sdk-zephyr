@@ -7,15 +7,15 @@
 
 #include <string.h>
 #include <stdbool.h>
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 
-#include <fs/fs.h>
+#include <zephyr/fs/fs.h>
 
-#include "settings/settings.h"
+#include <zephyr/settings/settings.h>
 #include "settings/settings_file.h"
 #include "settings_priv.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(settings, CONFIG_SETTINGS_LOG_LEVEL);
 
@@ -26,10 +26,12 @@ static int settings_file_load(struct settings_store *cs,
 			      const struct settings_load_arg *arg);
 static int settings_file_save(struct settings_store *cs, const char *name,
 			      const char *value, size_t val_len);
+static void *settings_fs_storage_get(struct settings_store *cs);
 
 static const struct settings_store_itf settings_file_itf = {
 	.csi_load = settings_file_load,
 	.csi_save = settings_file_save,
+	.csi_storage_get = settings_fs_storage_get
 };
 
 /*
@@ -534,4 +536,11 @@ int settings_backend_init(void)
 		rc = fs_mkdir(CONFIG_SETTINGS_FS_DIR);
 	}
 	return rc;
+}
+
+static void *settings_fs_storage_get(struct settings_store *cs)
+{
+	struct settings_file *cf = (struct settings_file *)cs;
+
+	return (void *)cf->cf_name;
 }

@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
-#include <ztest_assert.h>
+#include <zephyr/ztest_assert.h>
 #include <fcntl.h>
-#include <net/socket.h>
-#include <net/loopback.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/net/loopback.h>
 
 #include "../../socket_helpers.h"
 
@@ -21,7 +21,7 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #define MAX_CONNS 5
 
-#define TCP_TEARDOWN_TIMEOUT K_SECONDS(1)
+#define TCP_TEARDOWN_TIMEOUT K_SECONDS(3)
 #define THREAD_SLEEP 50 /* ms */
 
 static void test_bind(int sock, struct sockaddr *addr, socklen_t addrlen)
@@ -160,6 +160,51 @@ static void test_eof(int sock)
 	recved = recv(sock, rx_buf, sizeof(rx_buf), 0);
 	zassert_equal(recved, 0, "");
 }
+
+static void calc_net_context(struct net_context *context, void *user_data)
+{
+	int *count = user_data;
+
+	(*count)++;
+}
+
+/* Wait until the number of TCP contexts reaches a certain level
+ *   exp_num_contexts : The number of contexts to wait for
+ *   timeout :		The time to wait for
+ */
+int wait_for_n_tcp_contexts(int exp_num_contexts, k_timeout_t timeout)
+{
+	uint32_t start_time = k_uptime_get_32();
+	uint32_t time_diff;
+	int context_count = 0;
+
+	/* After the client socket closing, the context count should be 1 less */
+	net_context_foreach(calc_net_context, &context_count);
+
+	time_diff = k_uptime_get_32() - start_time;
+
+	/* Eventually the client socket should be cleaned up */
+	while (context_count != exp_num_contexts) {
+		context_count = 0;
+		net_context_foreach(calc_net_context, &context_count);
+		k_sleep(K_MSEC(50));
+		time_diff = k_uptime_get_32() - start_time;
+
+		if (K_MSEC(time_diff).ticks > timeout.ticks) {
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+static void test_context_cleanup(void)
+{
+	zassert_equal(wait_for_n_tcp_contexts(0, TCP_TEARDOWN_TIMEOUT),
+		      0,
+		      "Not all TCP contexts properly cleaned up");
+}
+
 
 void test_v4_send_recv(void)
 {
@@ -366,6 +411,88 @@ static void restore_packet_loss_ratio(void)
 	/* no packet dropping any more */
 	zassert_equal(loopback_set_packet_drop_ratio(0.0f), 0,
 		"Error setting packet drop rate");
+}
+
+void test_v4_broken_link(void)
+{
+	/* Test if the data stops transmitting after the send returned with a timeout. */
+	int c_sock;
+	int s_sock;
+	int new_sock;
+	struct sockaddr_in c_saddr;
+	struct sockaddr_in s_saddr;
+	struct sockaddr addr;
+	socklen_t addrlen = sizeof(addr);
+
+	struct timeval optval = {
+		.tv_sec = 0,
+		.tv_usec = 500000,
+	};
+
+	struct net_stats before;
+	struct net_stats after;
+	uint32_t start_time, time_diff;
+	ssize_t recved;
+	int rv;
+	uint8_t rx_buf[10];
+
+	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, ANY_PORT,
+			    &c_sock, &c_saddr);
+	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, SERVER_PORT,
+			    &s_sock, &s_saddr);
+
+	test_bind(s_sock, (struct sockaddr *)&s_saddr, sizeof(s_saddr));
+	test_listen(s_sock);
+
+	test_connect(c_sock, (struct sockaddr *)&s_saddr, sizeof(s_saddr));
+	test_send(c_sock, TEST_STR_SMALL, strlen(TEST_STR_SMALL), 0);
+
+	test_accept(s_sock, &new_sock, &addr, &addrlen);
+	zassert_equal(addrlen, sizeof(struct sockaddr_in), "wrong addrlen");
+
+	rv = setsockopt(new_sock, SOL_SOCKET, SO_RCVTIMEO, &optval,
+			sizeof(optval));
+	zassert_equal(rv, 0, "setsockopt failed (%d)", errno);
+
+	test_recv(new_sock, MSG_PEEK);
+	test_recv(new_sock, 0);
+
+	/* At this point break the interface */
+	zassert_equal(loopback_set_packet_drop_ratio(1.0f), 0,
+		"Error setting packet drop rate");
+
+	test_send(c_sock, TEST_STR_SMALL, strlen(TEST_STR_SMALL), 0);
+
+	/* At this point break the interface */
+	start_time = k_uptime_get_32();
+
+	/* Test the loopback packet loss: message should never arrive */
+	recved = recv(new_sock, rx_buf, sizeof(rx_buf), 0);
+	time_diff = k_uptime_get_32() - start_time;
+
+	zassert_equal(recved, -1, "Unexpected return code");
+	zassert_equal(errno, EAGAIN, "Unexpected errno value: %d", errno);
+	zassert_true(time_diff >= 500, "Expected timeout after 500ms but "
+			"was %dms", time_diff);
+
+	/* Reading from client should indicate the socket has been closed */
+	recved = recv(c_sock, rx_buf, sizeof(rx_buf), 0);
+	zassert_equal(recved, -1, "Unexpected return code");
+	zassert_equal(errno, ETIMEDOUT, "Unexpected errno value: %d", errno);
+
+	/* At this point there should be no traffic any more, get the current counters */
+	net_mgmt(NET_REQUEST_STATS_GET_ALL, NULL, &before, sizeof(before));
+
+	k_sleep(K_MSEC(CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT));
+	k_sleep(K_MSEC(CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT));
+
+	net_mgmt(NET_REQUEST_STATS_GET_ALL, NULL, &after, sizeof(after));
+
+	zassert_equal(before.ipv4.sent, after.ipv4.sent, "Data sent afer connection timeout");
+
+	test_close(c_sock);
+	test_close(new_sock);
+	test_close(s_sock);
 }
 
 void test_v4_sendto_recvfrom(void)
@@ -669,14 +796,7 @@ void test_shutdown_rd_while_recv(void)
 	test_close(s_sock);
 	test_close(c_sock);
 
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
-}
-
-static void calc_net_context(struct net_context *context, void *user_data)
-{
-	int *count = user_data;
-
-	(*count)++;
+	test_context_cleanup();
 }
 
 void test_open_close_immediately(void)
@@ -689,6 +809,8 @@ void test_open_close_immediately(void)
 	struct sockaddr_in s_saddr;
 	int c_sock;
 	int s_sock;
+
+	test_context_cleanup();
 
 	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, ANY_PORT,
 			    &c_sock, &c_saddr);
@@ -709,18 +831,139 @@ void test_open_close_immediately(void)
 	zassert_not_equal(connect(c_sock, (struct sockaddr *)&s_saddr,
 				  sizeof(s_saddr)),
 			  0, "connect succeed");
+
 	test_close(c_sock);
+
+	/* Allow for the close communication to finish,
+	 * this makes the test success, no longer scheduling dependent
+	 */
+	k_sleep(K_MSEC(CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT / 2));
 
 	/* After the client socket closing, the context count should be 1 */
 	net_context_foreach(calc_net_context, &count_after);
 
 	test_close(s_sock);
 
+	/* Although closing a server socket does not require communication,
+	 * wait a little to make the test robust to scheduling order
+	 */
+	k_sleep(K_MSEC(CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT / 2));
+
 	zassert_equal(count_before - 1, count_after,
 		      "net_context still in use (before %d vs after %d)",
 		      count_before - 1, count_after);
 
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
+	/* No need to wait here, as the test success depends on the socket being closed */
+	test_context_cleanup();
+}
+
+void test_connect_timeout(void)
+{
+	/* Test if socket connect fails when there is not communication
+	 * possible.
+	 */
+	int count_after = 0;
+	struct sockaddr_in c_saddr;
+	struct sockaddr_in s_saddr;
+	int c_sock;
+	int rv;
+
+	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, ANY_PORT,
+			    &c_sock, &c_saddr);
+
+	s_saddr.sin_family = AF_INET;
+	s_saddr.sin_port = htons(SERVER_PORT);
+	rv = zsock_inet_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &s_saddr.sin_addr);
+	zassert_equal(rv, 1, "inet_pton failed");
+
+	loopback_set_packet_drop_ratio(1.0f);
+
+	zassert_equal(connect(c_sock, (struct sockaddr *)&s_saddr,
+			    sizeof(s_saddr)),
+			    -1, "connect succeed");
+
+	zassert_equal(errno, ETIMEDOUT,
+			    "connect should be timed out, got %i", errno);
+
+	test_close(c_sock);
+
+	/* After the client socket closing, the context count should be 0 */
+	net_context_foreach(calc_net_context, &count_after);
+
+	zassert_equal(count_after, 0,
+			    "net_context still in use");
+}
+
+#define TCP_CLOSE_FAILURE_TIMEOUT 60000
+
+void test_close_obstructed(void)
+{
+	/* Test if socket closing even when there is not communication
+	 * possible any more
+	 */
+	int count_before = 0, count_after = 0;
+	struct sockaddr_in c_saddr;
+	struct sockaddr_in s_saddr;
+	struct sockaddr addr;
+	socklen_t addrlen = sizeof(addr);
+	int c_sock;
+	int s_sock;
+	int new_sock;
+	int dropped_packets_before = 0;
+	int dropped_packets_after = 0;
+
+	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, ANY_PORT,
+			    &c_sock, &c_saddr);
+	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, SERVER_PORT,
+			    &s_sock, &s_saddr);
+
+	test_bind(s_sock, (struct sockaddr *)&s_saddr, sizeof(s_saddr));
+	test_listen(s_sock);
+
+	zassert_equal(connect(c_sock, (struct sockaddr *)&s_saddr,
+				sizeof(s_saddr)),
+				0, "connect not succeed");
+	test_accept(s_sock, &new_sock, &addr, &addrlen);
+
+	/* We should have two contexts open now */
+	net_context_foreach(calc_net_context, &count_before);
+
+	/* Break the communication */
+	loopback_set_packet_drop_ratio(1.0f);
+
+	dropped_packets_before = loopback_get_num_dropped_packets();
+
+	test_close(c_sock);
+
+	wait_for_n_tcp_contexts(count_before-1, K_MSEC(TCP_CLOSE_FAILURE_TIMEOUT));
+
+	net_context_foreach(calc_net_context, &count_after);
+
+	zassert_equal(count_before - 1, count_after,
+		      "net_context still in use (before %d vs after %d)",
+		      count_before - 1, count_after);
+
+	dropped_packets_after = loopback_get_num_dropped_packets();
+	int dropped_packets = dropped_packets_after - dropped_packets_before;
+
+	/* At least some packet should have been dropped */
+	zassert_equal(dropped_packets,
+			CONFIG_NET_TCP_RETRY_COUNT + 1,
+			"Incorrect number of FIN retries, got %i, expected %i",
+			dropped_packets, CONFIG_NET_TCP_RETRY_COUNT+1);
+
+	test_close(new_sock);
+	test_close(s_sock);
+
+	test_context_cleanup();
+
+	/* After everything is closed, we expect no more dropped packets */
+	dropped_packets_before = loopback_get_num_dropped_packets();
+	k_sleep(K_SECONDS(2));
+	dropped_packets_after = loopback_get_num_dropped_packets();
+
+	zassert_equal(dropped_packets_before, dropped_packets_after,
+		      "packets after close");
 }
 
 void test_v4_accept_timeout(void)
@@ -758,6 +1001,10 @@ void test_so_type(void)
 	int optval;
 	socklen_t optlen = sizeof(optval);
 
+	zassert_equal(wait_for_n_tcp_contexts(0, TCP_TEARDOWN_TIMEOUT),
+		      0,
+		      "Not all TCP contexts properly cleaned up");
+
 	prepare_sock_tcp_v4(CONFIG_NET_CONFIG_MY_IPV4_ADDR, ANY_PORT,
 			    &sock1, &bind_addr4);
 	prepare_sock_tcp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, ANY_PORT,
@@ -775,7 +1022,10 @@ void test_so_type(void)
 
 	test_close(sock1);
 	test_close(sock2);
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
+
+	zassert_equal(wait_for_n_tcp_contexts(0, TCP_TEARDOWN_TIMEOUT),
+		      0,
+		      "Not all TCP contexts properly cleaned up");
 }
 
 void test_so_protocol(void)
@@ -803,7 +1053,8 @@ void test_so_protocol(void)
 
 	test_close(sock1);
 	test_close(sock2);
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
+
+	test_context_cleanup();
 }
 
 void test_so_rcvbuf(void)
@@ -844,6 +1095,8 @@ void test_so_rcvbuf(void)
 
 	test_close(sock1);
 	test_close(sock2);
+
+	test_context_cleanup();
 }
 
 void test_so_sndbuf(void)
@@ -884,6 +1137,8 @@ void test_so_sndbuf(void)
 
 	test_close(sock1);
 	test_close(sock2);
+
+	test_context_cleanup();
 }
 
 void test_v4_so_rcvtimeo(void)
@@ -952,7 +1207,7 @@ void test_v4_so_rcvtimeo(void)
 	test_close(new_sock);
 	test_close(s_sock);
 
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
+	test_context_cleanup();
 }
 
 void test_v6_so_rcvtimeo(void)
@@ -1021,7 +1276,7 @@ void test_v6_so_rcvtimeo(void)
 	test_close(new_sock);
 	test_close(s_sock);
 
-	k_sleep(TCP_TEARDOWN_TIMEOUT);
+	test_context_cleanup();
 }
 
 struct test_msg_waitall_data {
@@ -1119,6 +1374,8 @@ void test_v4_msg_waitall(void)
 	test_close(new_sock);
 	test_close(s_sock);
 	test_close(c_sock);
+
+	test_context_cleanup();
 }
 
 void test_v6_msg_waitall(void)
@@ -1193,6 +1450,8 @@ void test_v6_msg_waitall(void)
 	test_close(new_sock);
 	test_close(s_sock);
 	test_close(c_sock);
+
+	test_context_cleanup();
 }
 
 #ifdef CONFIG_USERSPACE
@@ -1282,6 +1541,10 @@ void test_main(void)
 		ztest_user_unit_test(test_shutdown_rd_synchronous),
 		ztest_unit_test(test_shutdown_rd_while_recv),
 		ztest_unit_test(test_open_close_immediately),
+		ztest_unit_test_setup_teardown(test_connect_timeout,
+		 restore_packet_loss_ratio, restore_packet_loss_ratio),
+		ztest_unit_test_setup_teardown(test_close_obstructed,
+		 restore_packet_loss_ratio, restore_packet_loss_ratio),
 		ztest_user_unit_test(test_v4_accept_timeout),
 		ztest_unit_test(test_so_type),
 		ztest_unit_test(test_so_protocol),
@@ -1294,7 +1557,9 @@ void test_main(void)
 		ztest_user_unit_test(test_socket_permission),
 		ztest_unit_test(test_v4_send_recv_large),
 		ztest_unit_test_setup_teardown(test_v4_send_recv_large,
-			set_packet_loss_ratio, restore_packet_loss_ratio)
+			set_packet_loss_ratio, restore_packet_loss_ratio),
+		ztest_unit_test_setup_teardown(test_v4_broken_link,
+			restore_packet_loss_ratio, restore_packet_loss_ratio)
 		);
 
 	ztest_run_test_suite(socket_tcp);

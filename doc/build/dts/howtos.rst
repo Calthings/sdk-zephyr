@@ -32,7 +32,7 @@ For example, using the :ref:`qemu_cortex_m3` board to build :ref:`hello_world`:
 
    # --cmake-only here just forces CMake to run, skipping the
    # build process to save time.
-   west build -b qemu_cortex_m3 -s samples/hello_world --cmake-only
+   west build -b qemu_cortex_m3 samples/hello_world --cmake-only
 
 You can change ``qemu_cortex_m3`` to match your board.
 
@@ -415,7 +415,7 @@ device-specific configuration and data structures and API functions, like this:
 .. code-block:: c
 
    /* my_driver.c */
-   #include <drivers/some_api.h>
+   #include <zephyr/drivers/some_api.h>
 
    /* Define data (RAM) and configuration (ROM) structures: */
    struct my_dev_data {

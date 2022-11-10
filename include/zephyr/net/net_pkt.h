@@ -19,15 +19,15 @@
 #include <zephyr/types.h>
 #include <stdbool.h>
 
-#include <net/buf.h>
+#include <zephyr/net/buf.h>
 
-#include <net/net_core.h>
-#include <net/net_linkaddr.h>
-#include <net/net_ip.h>
-#include <net/net_if.h>
-#include <net/net_context.h>
-#include <net/ethernet_vlan.h>
-#include <net/ptp_time.h>
+#include <zephyr/net/net_core.h>
+#include <zephyr/net/net_linkaddr.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_context.h>
+#include <zephyr/net/ethernet_vlan.h>
+#include <zephyr/net/ptp_time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,6 +124,7 @@ struct net_pkt {
 	/* Filled by layer 2 when network packet is received. */
 	struct net_linkaddr lladdr_src;
 	struct net_linkaddr lladdr_dst;
+	uint16_t ll_proto_type;
 
 #if defined(CONFIG_NET_TCP)
 	/** Allow placing the packet into sys_slist_t */
@@ -188,6 +189,10 @@ struct net_pkt {
 				 * preserved. Useful only if
 				 * defined(CONFIG_NET_ETHERNET_BRIDGE).
 				 */
+
+	uint8_t l2_processed : 1; /* Set to 1 if this packet has already been
+				   * processed by the L2
+				   */
 
 	union {
 		/* IPv6 hop limit or IPv4 ttl for this network packet.
@@ -367,6 +372,17 @@ static inline void net_pkt_set_l2_bridged(struct net_pkt *pkt, bool is_l2_bridge
 	if (IS_ENABLED(CONFIG_NET_ETHERNET_BRIDGE)) {
 		pkt->l2_bridged = is_l2_bridged;
 	}
+}
+
+static inline bool net_pkt_is_l2_processed(struct net_pkt *pkt)
+{
+	return !!(pkt->l2_processed);
+}
+
+static inline void net_pkt_set_l2_processed(struct net_pkt *pkt,
+					    bool is_l2_processed)
+{
+	pkt->l2_processed = is_l2_processed;
 }
 
 static inline uint8_t net_pkt_ip_hdr_len(struct net_pkt *pkt)
@@ -1001,6 +1017,16 @@ static inline void net_pkt_lladdr_clear(struct net_pkt *pkt)
 {
 	net_pkt_lladdr_src(pkt)->addr = NULL;
 	net_pkt_lladdr_src(pkt)->len = 0U;
+}
+
+static inline uint16_t net_pkt_ll_proto_type(struct net_pkt *pkt)
+{
+	return pkt->ll_proto_type;
+}
+
+static inline void net_pkt_set_ll_proto_type(struct net_pkt *pkt, uint16_t type)
+{
+	pkt->ll_proto_type = type;
 }
 
 #if defined(CONFIG_IEEE802154) || defined(CONFIG_IEEE802154_RAW_MODE)

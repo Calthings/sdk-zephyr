@@ -6,10 +6,10 @@
 
 #include <zephyr/types.h>
 
-#include <bluetooth/hci.h>
-#include <sys/byteorder.h>
-#include <sys/slist.h>
-#include <sys/util.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/slist.h>
+#include <zephyr/sys/util.h>
 
 #include "hal/ccm.h"
 
@@ -25,8 +25,14 @@
 #include "lll.h"
 #include "lll/lll_df_types.h"
 #include "lll_conn.h"
+#include "lll_conn_iso.h"
 
 #include "ull_tx_queue.h"
+
+#include "isoal.h"
+#include "ull_iso_types.h"
+#include "ull_conn_iso_types.h"
+#include "ull_conn_iso_internal.h"
 
 #include "ull_conn_types.h"
 #include "ull_llcp.h"
@@ -504,6 +510,7 @@ void llcp_pdu_decode_phy_rsp(struct proc_ctx *ctx, struct pdu_data *pdu)
 #endif /* CONFIG_BT_CENTRAL */
 #endif /* CONFIG_BT_CTLR_PHY */
 
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
 /*
  * Connection Update Procedure Helper
  */
@@ -592,6 +599,7 @@ void llcp_pdu_decode_conn_param_rsp(struct proc_ctx *ctx, struct pdu_data *pdu)
 	ctx->data.cu.offset4 = sys_le16_to_cpu(p->offset4);
 	ctx->data.cu.offset5 = sys_le16_to_cpu(p->offset5);
 }
+#endif /* defined(CONFIG_BT_CTLR_CONN_PARAM_REQ) */
 
 void llcp_pdu_encode_conn_update_ind(struct proc_ctx *ctx, struct pdu_data *pdu)
 {
@@ -617,7 +625,7 @@ void llcp_pdu_decode_conn_update_ind(struct proc_ctx *ctx, struct pdu_data *pdu)
 
 	p = (void *)&pdu->llctrl.conn_update_ind;
 	ctx->data.cu.win_size = p->win_size;
-	ctx->data.cu.win_offset_us = sys_le16_to_cpu(p->win_offset * CONN_INT_UNIT_US);
+	ctx->data.cu.win_offset_us = sys_le16_to_cpu(p->win_offset) * CONN_INT_UNIT_US;
 	ctx->data.cu.latency = sys_le16_to_cpu(p->latency);
 	ctx->data.cu.interval_max = sys_le16_to_cpu(p->interval);
 	ctx->data.cu.timeout = sys_le16_to_cpu(p->timeout);
@@ -692,24 +700,75 @@ void llcp_ntf_encode_length_change(struct ll_conn *conn, struct pdu_data *pdu)
 	p->max_tx_time = sys_cpu_to_le16(conn->lll.dle.eff.max_tx_time);
 }
 
+static bool dle_remote_valid(const struct data_pdu_length *remote)
+{
+	if (!IN_RANGE(remote->max_rx_octets, PDU_DC_PAYLOAD_SIZE_MIN,
+		      PDU_DC_PAYLOAD_SIZE_MAX)) {
+		return false;
+	}
+
+	if (!IN_RANGE(remote->max_tx_octets, PDU_DC_PAYLOAD_SIZE_MIN,
+		      PDU_DC_PAYLOAD_SIZE_MAX)) {
+		return false;
+	}
+
+#if defined(CONFIG_BT_CTLR_PHY)
+	if (!IN_RANGE(remote->max_rx_time, PDU_DC_PAYLOAD_TIME_MIN,
+		      PDU_DC_PAYLOAD_TIME_MAX_CODED)) {
+		return false;
+	}
+
+	if (!IN_RANGE(remote->max_tx_time, PDU_DC_PAYLOAD_TIME_MIN,
+		      PDU_DC_PAYLOAD_TIME_MAX_CODED)) {
+		return false;
+	}
+#else
+	if (!IN_RANGE(remote->max_rx_time, PDU_DC_PAYLOAD_TIME_MIN,
+		      PDU_DC_PAYLOAD_TIME_MAX)) {
+		return false;
+	}
+
+	if (!IN_RANGE(remote->max_tx_time, PDU_DC_PAYLOAD_TIME_MIN,
+		      PDU_DC_PAYLOAD_TIME_MAX)) {
+		return false;
+	}
+#endif /* CONFIG_BT_CTLR_PHY */
+
+	return true;
+}
+
 void llcp_pdu_decode_length_req(struct ll_conn *conn, struct pdu_data *pdu)
 {
 	struct pdu_data_llctrl_length_req *p = &pdu->llctrl.length_req;
+	struct data_pdu_length remote;
 
-	conn->lll.dle.remote.max_rx_octets = sys_le16_to_cpu(p->max_rx_octets);
-	conn->lll.dle.remote.max_tx_octets = sys_le16_to_cpu(p->max_tx_octets);
-	conn->lll.dle.remote.max_rx_time = sys_le16_to_cpu(p->max_rx_time);
-	conn->lll.dle.remote.max_tx_time = sys_le16_to_cpu(p->max_tx_time);
+	remote.max_rx_octets = sys_le16_to_cpu(p->max_rx_octets);
+	remote.max_tx_octets = sys_le16_to_cpu(p->max_tx_octets);
+	remote.max_rx_time = sys_le16_to_cpu(p->max_rx_time);
+	remote.max_tx_time = sys_le16_to_cpu(p->max_tx_time);
+
+	if (!dle_remote_valid(&remote)) {
+		return;
+	}
+
+	conn->lll.dle.remote = remote;
 }
 
 void llcp_pdu_decode_length_rsp(struct ll_conn *conn, struct pdu_data *pdu)
 {
 	struct pdu_data_llctrl_length_rsp *p = &pdu->llctrl.length_rsp;
+	struct data_pdu_length remote;
 
-	conn->lll.dle.remote.max_rx_octets = sys_le16_to_cpu(p->max_rx_octets);
-	conn->lll.dle.remote.max_tx_octets = sys_le16_to_cpu(p->max_tx_octets);
-	conn->lll.dle.remote.max_rx_time = sys_le16_to_cpu(p->max_rx_time);
-	conn->lll.dle.remote.max_tx_time = sys_le16_to_cpu(p->max_tx_time);
+	remote.max_rx_octets = sys_le16_to_cpu(p->max_rx_octets);
+	remote.max_tx_octets = sys_le16_to_cpu(p->max_tx_octets);
+	remote.max_rx_time = sys_le16_to_cpu(p->max_rx_time);
+	remote.max_tx_time = sys_le16_to_cpu(p->max_tx_time);
+
+	if (!dle_remote_valid(&remote)) {
+		return;
+	}
+
+	conn->lll.dle.remote = remote;
 }
 #endif /* CONFIG_BT_CTLR_DATA_LENGTH */
 
@@ -775,3 +834,73 @@ void llcp_pdu_encode_cte_rsp(const struct proc_ctx *ctx, struct pdu_data *pdu)
 	pdu->cte_info.type = ctx->data.cte_remote_req.cte_type;
 }
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RSP */
+
+#if defined(CONFIG_BT_CTLR_PERIPHERAL_ISO)
+void llcp_pdu_decode_cis_req(struct proc_ctx *ctx, struct pdu_data *pdu)
+{
+	ctx->data.cis_create.cig_id	= pdu->llctrl.cis_req.cig_id;
+	ctx->data.cis_create.cis_id	= pdu->llctrl.cis_req.cis_id;
+	ctx->data.cis_create.cis_offset_min = sys_get_le24(pdu->llctrl.cis_req.cis_offset_min);
+	ctx->data.cis_create.cis_offset_max = sys_get_le24(pdu->llctrl.cis_req.cis_offset_max);
+	ctx->data.cis_create.conn_event_count =
+		sys_le16_to_cpu(pdu->llctrl.cis_req.conn_event_count);
+	/* The remainder of the req is decoded by ull_peripheral_iso_acquire, so
+	 *  no need to do it here too
+	ctx->data.cis_create.c_phy	= pdu->llctrl.cis_req.c_phy;
+	ctx->data.cis_create.p_phy	= pdu->llctrl.cis_req.p_phy;
+	ctx->data.cis_create.c_max_sdu	= pdu->llctrl.cis_req.c_max_sdu;
+	ctx->data.cis_create.p_max_sdu	= pdu->llctrl.cis_req.p_max_sdu;
+	ctx->data.cis_create.framed	= pdu->llctrl.cis_req.framed;
+	ctx->data.cis_create.c_sdu_interval = sys_get_le24(pdu->llctrl.cis_req.c_sdu_interval);
+	ctx->data.cis_create.p_sdu_interval = sys_get_le24(pdu->llctrl.cis_req.p_sdu_interval);
+	ctx->data.cis_create.nse	= pdu->llctrl.cis_req.nse;
+	ctx->data.cis_create.c_max_pdu	= sys_le16_to_cpu(pdu->llctrl.cis_req.c_max_pdu);
+	ctx->data.cis_create.p_max_pdu	= sys_le16_to_cpu(pdu->llctrl.cis_req.p_max_pdu);
+	ctx->data.cis_create.sub_interval = sys_get_le24(pdu->llctrl.cis_req.sub_interval);
+	ctx->data.cis_create.p_bn	= pdu->llctrl.cis_req.p_bn;
+	ctx->data.cis_create.c_bn	= pdu->llctrl.cis_req.c_bn;
+	ctx->data.cis_create.c_ft	= pdu->llctrl.cis_req.c_ft;
+	ctx->data.cis_create.p_ft	= pdu->llctrl.cis_req.p_ft;
+	ctx->data.cis_create.iso_interval = sys_le16_to_cpu(pdu->llctrl.cis_req.iso_interval);
+	*/
+}
+
+void llcp_pdu_encode_cis_rsp(struct proc_ctx *ctx, struct pdu_data *pdu)
+{
+	struct pdu_data_llctrl_cis_rsp *p;
+
+	pdu->ll_id = PDU_DATA_LLID_CTRL;
+	pdu->len =
+		offsetof(struct pdu_data_llctrl, cis_rsp) + sizeof(struct pdu_data_llctrl_cis_rsp);
+	pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_CIS_RSP;
+
+	p = &pdu->llctrl.cis_rsp;
+	sys_put_le24(ctx->data.cis_create.cis_offset_max, p->cis_offset_max);
+	sys_put_le24(ctx->data.cis_create.cis_offset_min, p->cis_offset_min);
+	p->conn_event_count = sys_cpu_to_le16(ctx->data.cis_create.conn_event_count);
+}
+#endif /* defined(CONFIG_BT_CTLR_PERIPHERAL_ISO) */
+#if defined(CONFIG_BT_CTLR_CENTRAL_ISO) || defined(CONFIG_BT_CTLR_PERIPHERAL_ISO)
+void llcp_pdu_encode_cis_terminate_ind(struct proc_ctx *ctx, struct pdu_data *pdu)
+{
+	struct pdu_data_llctrl_cis_terminate_ind *p;
+
+	pdu->ll_id = PDU_DATA_LLID_CTRL;
+	pdu->len =
+		offsetof(struct pdu_data_llctrl, cis_terminate_ind) +
+		sizeof(struct pdu_data_llctrl_cis_terminate_ind);
+	pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_CIS_TERMINATE_IND;
+
+	p = &pdu->llctrl.cis_terminate_ind;
+	p->cig_id = ctx->data.cis_term.cig_id;
+	p->cis_id = ctx->data.cis_term.cis_id;
+	p->error_code = ctx->data.cis_term.error_code;
+}
+
+void llcp_pdu_decode_cis_terminate_ind(struct proc_ctx *ctx, struct pdu_data *pdu)
+{
+	ctx->data.cis_term.cig_id = pdu->llctrl.cis_terminate_ind.cig_id;
+	ctx->data.cis_term.cis_id = pdu->llctrl.cis_terminate_ind.cis_id;
+	ctx->data.cis_term.error_code = pdu->llctrl.cis_terminate_ind.error_code;
+}
+#endif /* defined(CONFIG_BT_CTLR_CENTRAL_ISO) || defined(CONFIG_BT_CTLR_PERIPHERAL_ISO) */

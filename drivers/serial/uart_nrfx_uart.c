@@ -8,13 +8,13 @@
  * @brief Driver for Nordic Semiconductor nRF5X UART
  */
 
-#include <drivers/uart.h>
-#include <pm/device.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/pm/device.h>
 #include <soc.h>
 #include <hal/nrf_uart.h>
 
 #ifdef CONFIG_PINCTRL
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 #else
 #include <hal/nrf_gpio.h>
 #endif /* CONFIG_PINCTRL */
@@ -559,7 +559,7 @@ static int uart_nrfx_rx_buf_rsp(const struct device *dev, uint8_t *buf,
 				size_t len)
 {
 	int err;
-	int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (!uart0_cb.rx_enabled) {
 		err = -EACCES;
@@ -668,7 +668,7 @@ static void rx_isr(const struct device *dev)
 		}
 		rx_rdy_evt(dev);
 
-		int key = irq_lock();
+		unsigned int key = irq_lock();
 
 		if (uart0_cb.rx_secondary_buffer_length == 0) {
 			uart0_cb.rx_enabled = 0;

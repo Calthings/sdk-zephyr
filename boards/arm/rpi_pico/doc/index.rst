@@ -27,6 +27,7 @@ Hardware
 - USB 1.1 controller (host/device)
 - 8 Programmable I/O (PIO) for custom peripherals
 - On-board LED
+- 1 Watchdog timer peripheral
 
 
 .. figure:: img/rpi_pico.png
@@ -60,9 +61,18 @@ hardware features:
    * - I2C
      - :kconfig:option:`CONFIG_I2C`
      - :dtcompatible:`snps,designware-i2c`
+   * - USB Device
+     - :kconfig:option:`CONFIG_USB_DEVICE_STACK`
+     - :dtcompatible:`raspberrypi,pico-usbd`
    * - HWINFO
      - :kconfig:option:`CONFIG_HWINFO`
      - N/A
+   * - Watchdog Timer (WDT)
+     - :kconfig:option:`CONFIG_WATCHDOG`
+     - :dtcompatible:`raspberrypi,pico-watchdog`
+   * - PWM
+     - :kconfig:option:`CONFIG_PWM`
+     - :dtcompatible:`raspberrypi,pico-pwm`
 
 Programming and Debugging
 *************************

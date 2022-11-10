@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <device.h>
+#include <zephyr/ztest.h>
+#include <zephyr/device.h>
 #include "abstract_driver.h"
 
 #define MY_DRIVER_A	"my_driver_A"

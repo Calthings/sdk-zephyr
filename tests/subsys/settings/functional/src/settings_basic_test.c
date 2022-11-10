@@ -9,19 +9,19 @@
  *
  */
 
-#include <zephyr.h>
-#include <ztest.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/ztest.h>
 #include <errno.h>
-#include <settings/settings.h>
-#include <logging/log.h>
+#include <zephyr/settings/settings.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(settings_basic_test);
 
 #if defined(CONFIG_SETTINGS_FCB) || defined(CONFIG_SETTINGS_NVS)
-#include <storage/flash_map.h>
+#include <zephyr/storage/flash_map.h>
 #endif
 #if IS_ENABLED(CONFIG_SETTINGS_FS)
-#include <fs/fs.h>
-#include <fs/littlefs.h>
+#include <zephyr/fs/fs.h>
+#include <zephyr/fs/littlefs.h>
 #endif
 
 /* The standard test expects a cleared flash area.  Make sure it has
@@ -612,6 +612,7 @@ static void test_direct_loading_filter(void)
 	}
 }
 
+extern void test_setting_storage_get(void);
 
 void test_main(void)
 {
@@ -620,7 +621,8 @@ void test_main(void)
 			 ztest_unit_test(test_support_rtn),
 			 ztest_unit_test(test_register_and_loading),
 			 ztest_unit_test(test_direct_loading),
-			 ztest_unit_test(test_direct_loading_filter)
+			 ztest_unit_test(test_direct_loading_filter),
+			 ztest_unit_test(test_setting_storage_get)
 			);
 
 	ztest_run_test_suite(settings_test_suite);

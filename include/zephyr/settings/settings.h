@@ -9,8 +9,8 @@
 #define ZEPHYR_INCLUDE_SETTINGS_SETTINGS_H_
 
 #include <sys/types.h>
-#include <sys/util.h>
-#include <sys/slist.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/slist.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -125,7 +125,7 @@ struct settings_handler {
 /**
  * @struct settings_handler_static
  * Config handlers without the node element, used for static handlers.
- * These are registered using a call to SETTINGS_REGISTER_STATIC().
+ * These are registered using a call to SETTINGS_STATIC_HANDLER_DEFINE().
  */
 struct settings_handler_static {
 
@@ -260,16 +260,7 @@ int settings_load_subtree(const char *subtree);
  * @param[in,out] param   parameter given to the
  *                        @ref settings_load_subtree_direct function.
  *
- *  - key[in] the name with skipped part that was used as name in
- *    handler registration
- *  - len[in] the size of the data found in the backend.
- *  - read_cb[in] function provided to read the data from the backend.
- *  - cb_arg[in] arguments for the read function provided by the
- *    backend.
- *
  * @return When nonzero value is returned, further subtree searching is stopped.
- *         Use with care as some settings backends would iterate through old
- *         values, and the current value is returned last.
  */
 typedef int (*settings_load_direct_cb)(
 	const char      *key,
@@ -449,6 +440,13 @@ struct settings_store_itf {
 	 * Parameters:
 	 *  - cs - Corresponding backend handler node
 	 */
+
+	/**< Get pointer to the storage instance used by the backend.
+	 *
+	 * Parameters:
+	 *  - cs - Corresponding backend handler node
+	 */
+	void *(*csi_storage_get)(struct settings_store *cs);
 };
 
 /**
@@ -594,6 +592,18 @@ int settings_runtime_commit(const char *name);
 
 #endif /* CONFIG_SETTINGS_RUNTIME */
 
+/**
+ * Get the storage instance used by zephyr.
+ *
+ * The type of storage object instance depends on the settings backend used.
+ * It might pointer to: `struct nvs_fs`, `struct fcb` or string witch file name
+ * depends on settings backend type used.
+ *
+ * @retval Pointer to which reference to the storage object can be stored.
+ *
+ * @retval 0 on success, negative error code on failure.
+ */
+int settings_storage_get(void **storage);
 
 #ifdef __cplusplus
 }

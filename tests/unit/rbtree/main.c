@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <ztest.h>
-#include <sys/rb.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/rb.h>
 
 #include "../../../lib/os/rb.c"
 

@@ -26,6 +26,10 @@
 
 /* Macro to define length of the BLE packet length field in bits */
 #define RADIO_PKT_CONF_LENGTH_8BIT (8U)
+#define RADIO_PKT_CONF_LENGTH_5BIT (5U)
+
+/* Macro to define length of the BLE packet S1 field in bits */
+#define RADIO_PKT_CONF_S1_8BIT (8U)
 
 /* Helper macro to create bitfield with PDU type only*/
 #define RADIO_PKT_CONF_PDU_TYPE(phy) ((uint8_t)((phy) << RADIO_PKT_CONF_PDU_TYPE_POS))
@@ -159,7 +163,7 @@ void radio_ar_configure(uint32_t nirk, void *irk, uint8_t flags);
 uint32_t radio_ar_match_get(void);
 void radio_ar_status_reset(void);
 uint32_t radio_ar_has_match(void);
-void radio_ar_resolve(const uint8_t *addr);
+uint8_t radio_ar_resolve(const uint8_t *addr);
 
 /* Enables CTE inline configuration to automatically setup sampling and
  * switching according to CTEInfo in received PDU.

@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <kernel.h>
-#include <drivers/i2c.h>
-#include <drivers/dac.h>
-#include <sys/util.h>
-#include <sys/byteorder.h>
-#include <sys/__assert.h>
-#include <logging/log.h>
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/dac.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(dac_dacx3608, CONFIG_DAC_LOG_LEVEL);
 
@@ -251,7 +250,7 @@ static const struct dac_driver_api dacx3608_driver_api = {
 				&dacx3608_init, NULL, \
 				&dac##t##_data_##n, \
 				&dac##t##_config_##n, POST_KERNEL, \
-				CONFIG_DAC_INIT_PRIORITY, \
+				CONFIG_DAC_DACX3608_INIT_PRIORITY, \
 				&dacx3608_driver_api)
 
 /*

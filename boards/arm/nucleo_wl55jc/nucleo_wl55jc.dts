@@ -59,6 +59,7 @@
 		sw1 = &user_button_2;
 		sw2 = &user_button_3;
 		lora0 = &lora;
+		watchdog0 = &iwdg;
 	};
 
 	power-states {
@@ -193,7 +194,7 @@
 		 */
 		storage_partition: partition@3c000 {
 			label = "storage";
-			reg = <0x0003c000 0x00004000>;
+			reg = <0x0003c000 DT_SIZE_K(16)>;
 		};
 	};
 };

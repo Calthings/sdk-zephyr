@@ -14,12 +14,13 @@
 #include <riscv/interrupt.h>
 #include <soc/interrupt_reg.h>
 #include <soc/periph_defs.h>
-#include <drivers/interrupt_controller/intc_esp32c3.h>
+#include <zephyr/drivers/interrupt_controller/intc_esp32c3.h>
 
-#include <kernel_structs.h>
+#include <zephyr/kernel_structs.h>
 #include <string.h>
-#include <toolchain/gcc.h>
+#include <zephyr/toolchain/gcc.h>
 #include <soc.h>
+#include <zephyr/arch/riscv/arch.h>
 
 #define ESP32C3_INTSTATUS_SLOT1_THRESHOLD	32
 

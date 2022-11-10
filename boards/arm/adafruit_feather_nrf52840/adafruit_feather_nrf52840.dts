@@ -49,6 +49,8 @@
 		led0 = &led0;
 		led1 = &led1;
 		sw0 = &button0;
+		watchdog0 = &wdt0;
+		spi-flash0 = &gd25q16;
 	};
 };
 
@@ -104,7 +106,6 @@
 		writeoc = "pp4o";
 		readoc = "read4io";
 		sck-frequency = <16000000>;
-		label = "GD25Q16";
 		jedec-id = [c8 40 15];
 		size = <16777216>;
 		has-dpd;
@@ -123,7 +124,7 @@
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x000000000 0x0000C000>;
+			reg = <0x00000000 0x0000C000>;
 		};
 		slot0_partition: partition@c000 {
 			label = "image-0";

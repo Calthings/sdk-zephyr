@@ -9,24 +9,23 @@
 #define LOG_MODULE_NAME ieee802154_kw41z
 #define LOG_LEVEL CONFIG_IEEE802154_DRIVER_LOG_LEVEL
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-#include <zephyr.h>
-#include <kernel.h>
-#include <device.h>
-#include <init.h>
-#include <irq.h>
-#include <net/ieee802154_radio.h>
-#include <net/net_if.h>
-#include <net/net_pkt.h>
-#include <sys/byteorder.h>
-#include <random/rand32.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
+#include <zephyr/irq.h>
+#include <zephyr/net/ieee802154_radio.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_pkt.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/random/rand32.h>
 
 #include "fsl_xcvr.h"
 
 #if defined(CONFIG_NET_L2_OPENTHREAD)
-#include <net/openthread.h>
+#include <zephyr/net/openthread.h>
 #endif
 
 
@@ -68,7 +67,7 @@ int kw41_dbg_idx;
 		if (++kw41_dbg_idx == KW41_DBG_TRACE_SIZE) { \
 			kw41_dbg_idx = 0; \
 		} \
-	} while (0)
+	} while (false)
 
 #else
 
@@ -204,7 +203,7 @@ static inline void kw41z_wait_for_idle(void)
 
 static void kw41z_phy_abort(void)
 {
-	int key;
+	unsigned int key;
 
 	key = irq_lock();
 
@@ -620,7 +619,7 @@ static int kw41z_tx(const struct device *dev, enum ieee802154_tx_mode mode,
 	uint8_t payload_len = frag->len;
 	uint32_t tx_timeout;
 	uint8_t xcvseq;
-	int key;
+	unsigned int key;
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
 		NET_ERR("TX mode %d not supported", mode);

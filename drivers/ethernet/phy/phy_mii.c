@@ -7,14 +7,14 @@
 #define DT_DRV_COMPAT ethernet_phy
 
 #include <errno.h>
-#include <device.h>
-#include <init.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 #include <soc.h>
-#include <drivers/mdio.h>
-#include <net/phy.h>
-#include <net/mii.h>
+#include <zephyr/drivers/mdio.h>
+#include <zephyr/net/phy.h>
+#include <zephyr/net/mii.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(phy_mii, CONFIG_PHY_LOG_LEVEL);
 
 struct phy_mii_dev_config {
@@ -260,25 +260,29 @@ static int phy_mii_cfg_link(const struct device *dev,
 		return -EIO;
 	}
 
-	if (adv_speeds & LINK_FULL_10BASE_T)
+	if (adv_speeds & LINK_FULL_10BASE_T) {
 		anar_reg |= MII_ADVERTISE_10_FULL;
-	else
+	} else {
 		anar_reg &= ~MII_ADVERTISE_10_FULL;
+	}
 
-	if (adv_speeds & LINK_HALF_10BASE_T)
+	if (adv_speeds & LINK_HALF_10BASE_T) {
 		anar_reg |= MII_ADVERTISE_10_HALF;
-	else
+	} else {
 		anar_reg &= ~MII_ADVERTISE_10_HALF;
+	}
 
-	if (adv_speeds & LINK_FULL_100BASE_T)
+	if (adv_speeds & LINK_FULL_100BASE_T) {
 		anar_reg |= MII_ADVERTISE_100_FULL;
-	else
+	} else {
 		anar_reg &= ~MII_ADVERTISE_100_FULL;
+	}
 
-	if (adv_speeds & LINK_HALF_100BASE_T)
+	if (adv_speeds & LINK_HALF_100BASE_T) {
 		anar_reg |= MII_ADVERTISE_100_HALF;
-	else
+	} else {
 		anar_reg &= ~MII_ADVERTISE_100_HALF;
+	}
 
 	bmcr_reg |= MII_BMCR_AUTONEG_ENABLE;
 

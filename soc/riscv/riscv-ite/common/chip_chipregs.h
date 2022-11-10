@@ -6,7 +6,7 @@
 #ifndef CHIP_CHIPREGS_H
 #define CHIP_CHIPREGS_H
 
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 
 #define EC_REG_BASE_ADDR 0x00f00000
 
@@ -1342,6 +1342,45 @@ struct peci_it8xxx2_regs {
 
 /**
  *
+ * (37xxh, 38xxh) USBPD Controller
+ *
+ */
+#ifndef __ASSEMBLER__
+struct usbpd_it8xxx2_regs {
+	/* 0x000~0x003: Reserved1 */
+	volatile uint8_t Reserved1[4];
+	/* 0x004: CC General Configuration */
+	volatile uint8_t CCGCR;
+	/* 0x005: CC Channel Setting */
+	volatile uint8_t CCCSR;
+	/* 0x006: CC Pad Setting */
+	volatile uint8_t CCPSR;
+};
+#endif /* !__ASSEMBLER__ */
+
+/* USBPD controller register fields */
+/* 0x004: CC General Configuration */
+#define IT8XXX2_USBPD_DISABLE_CC			BIT(7)
+#define IT8XXX2_USBPD_DISABLE_CC_VOL_DETECTOR		BIT(6)
+#define IT8XXX2_USBPD_CC_SELECT_RP_RESERVED		(BIT(3) | BIT(2) | BIT(1))
+#define IT8XXX2_USBPD_CC_SELECT_RP_DEF			(BIT(3) | BIT(2))
+#define IT8XXX2_USBPD_CC_SELECT_RP_1A5			BIT(3)
+#define IT8XXX2_USBPD_CC_SELECT_RP_3A0			BIT(2)
+#define IT8XXX2_USBPD_CC1_CC2_SELECTION			BIT(0)
+/* 0x005: CC Channel Setting */
+#define IT8XXX2_USBPD_CC2_DISCONNECT			BIT(7)
+#define IT8XXX2_USBPD_CC2_DISCONNECT_5_1K_TO_GND	BIT(6)
+#define IT8XXX2_USBPD_CC1_DISCONNECT			BIT(3)
+#define IT8XXX2_USBPD_CC1_DISCONNECT_5_1K_TO_GND	BIT(2)
+#define IT8XXX2_USBPD_CC1_CC2_RP_RD_SELECT		(BIT(1) | BIT(5))
+/* 0x006: CC Pad Setting */
+#define IT8XXX2_USBPD_DISCONNECT_5_1K_CC2_DB		BIT(6)
+#define IT8XXX2_USBPD_DISCONNECT_POWER_CC2		BIT(5)
+#define IT8XXX2_USBPD_DISCONNECT_5_1K_CC1_DB		BIT(2)
+#define IT8XXX2_USBPD_DISCONNECT_POWER_CC1		BIT(1)
+
+/**
+ *
  * (3Cxxh) Crypto Engine
  *
  */
@@ -1443,6 +1482,101 @@ struct flash_it8xxx2_regs {
 
 #define IT8XXX2_GPIO_GPCRP0     ECREG(IT8XXX2_GPIO2_BASE + 0x18)
 #define IT8XXX2_GPIO_GPCRP1     ECREG(IT8XXX2_GPIO2_BASE + 0x19)
+
+/**
+ *
+ * (16xxh) General Purpose I/O Port (GPIO) registers
+ *
+ */
+#ifndef __ASSEMBLER__
+struct gpio_it8xxx2_regs {
+	/* 0x00: General Control */
+	volatile uint8_t GPIO_GCR;
+	/* 0x01-D0: Reserved1 */
+	volatile uint8_t reserved1[208];
+	/* 0xD1: General Control 25 */
+	volatile uint8_t GPIO_GCR25;
+	/* 0xD2: General Control 26 */
+	volatile uint8_t GPIO_GCR26;
+	/* 0xD3: General Control 27 */
+	volatile uint8_t GPIO_GCR27;
+	/* 0xD4: General Control 28 */
+	volatile uint8_t GPIO_GCR28;
+	/* 0xD5: General Control 31 */
+	volatile uint8_t GPIO_GCR31;
+	/* 0xD6: General Control 32 */
+	volatile uint8_t GPIO_GCR32;
+	/* 0xD7: General Control 33 */
+	volatile uint8_t GPIO_GCR33;
+	/* 0xD8-0xDF: Reserved2 */
+	volatile uint8_t reserved2[8];
+	/* 0xE0: General Control 16 */
+	volatile uint8_t GPIO_GCR16;
+	/* 0xE1: General Control 17 */
+	volatile uint8_t GPIO_GCR17;
+	/* 0xE2: General Control 18 */
+	volatile uint8_t GPIO_GCR18;
+	/* 0xE3: Reserved3 */
+	volatile uint8_t reserved3;
+	/* 0xE4: General Control 19 */
+	volatile uint8_t GPIO_GCR19;
+	/* 0xE5: General Control 20 */
+	volatile uint8_t GPIO_GCR20;
+	/* 0xE6: General Control 21 */
+	volatile uint8_t GPIO_GCR21;
+	/* 0xE7: General Control 22 */
+	volatile uint8_t GPIO_GCR22;
+	/* 0xE8: General Control 23 */
+	volatile uint8_t GPIO_GCR23;
+	/* 0xE9: General Control 24 */
+	volatile uint8_t GPIO_GCR24;
+	/* 0xEA-0xEC: Reserved4 */
+	volatile uint8_t reserved4[3];
+	/* 0xED: General Control 30 */
+	volatile uint8_t GPIO_GCR30;
+	/* 0xEE: General Control 29 */
+	volatile uint8_t GPIO_GCR29;
+	/* 0xEF: Reserved5 */
+	volatile uint8_t reserved5;
+	/* 0xF0: General Control 1 */
+	volatile uint8_t GPIO_GCR1;
+	/* 0xF1: General Control 2 */
+	volatile uint8_t GPIO_GCR2;
+	/* 0xF2: General Control 3 */
+	volatile uint8_t GPIO_GCR3;
+	/* 0xF3: General Control 4 */
+	volatile uint8_t GPIO_GCR4;
+	/* 0xF4: General Control 5 */
+	volatile uint8_t GPIO_GCR5;
+	/* 0xF5: General Control 6 */
+	volatile uint8_t GPIO_GCR6;
+	/* 0xF6: General Control 7 */
+	volatile uint8_t GPIO_GCR7;
+	/* 0xF7: General Control 8 */
+	volatile uint8_t GPIO_GCR8;
+	/* 0xF8: General Control 9 */
+	volatile uint8_t GPIO_GCR9;
+	/* 0xF9: General Control 10 */
+	volatile uint8_t GPIO_GCR10;
+	/* 0xFA: General Control 11 */
+	volatile uint8_t GPIO_GCR11;
+	/* 0xFB: General Control 12 */
+	volatile uint8_t GPIO_GCR12;
+	/* 0xFC: General Control 13 */
+	volatile uint8_t GPIO_GCR13;
+	/* 0xFD: General Control 14 */
+	volatile uint8_t GPIO_GCR14;
+	/* 0xFE: General Control 15 */
+	volatile uint8_t GPIO_GCR15;
+	/* 0xFF: Power Good Watch Control */
+	volatile uint8_t GPIO_PGWCR;
+};
+#endif /* !__ASSEMBLER__ */
+
+/* GPIO register fields */
+/* 0x00: General Control */
+#define IT8XXX2_GPIO_LPCRSTEN        (BIT(2) | BIT(1))
+
 
 /**
  *
@@ -1601,7 +1735,15 @@ enum chip_pll_mode {
 #define IT8XXX2_I2C_IRQ_ST(base)      ECREG(base + 0x0D)
 #define IT8XXX2_I2C_IDR(base)         ECREG(base + 0x06)
 #define IT8XXX2_I2C_TOS(base)         ECREG(base + 0x07)
+#define IT8XXX2_I2C_STR2(base)        ECREG(base + 0x12)
+#define IT8XXX2_I2C_NST(base)         ECREG(base + 0x13)
+#define IT8XXX2_I2C_TO_ARB_ST(base)   ECREG(base + 0x18)
+#define IT8XXX2_I2C_ERR_ST(base)      ECREG(base + 0x19)
+#define IT8XXX2_I2C_FST(base)         ECREG(base + 0x1B)
+#define IT8XXX2_I2C_EM(base)          ECREG(base + 0x1C)
+#define IT8XXX2_I2C_MODE_SEL(base)    ECREG(base + 0x1D)
 #define IT8XXX2_I2C_IDR2(base)        ECREG(base + 0x1F)
+#define IT8XXX2_I2C_CTR2(base)        ECREG(base + 0x20)
 #define IT8XXX2_I2C_RAMHA(base)       ECREG(base + 0x23)
 #define IT8XXX2_I2C_RAMLA(base)       ECREG(base + 0x24)
 #define IT8XXX2_I2C_RAMHA2(base)      ECREG(base + 0x2B)
@@ -1642,7 +1784,17 @@ enum chip_pll_mode {
 #define IT8XXX2_I2C_SCL_IN            BIT(2)
 #define IT8XXX2_I2C_SDA_IN            BIT(0)
 /* 0x0A: Control 1 */
+#define IT8XXX2_I2C_COMQ_EN           BIT(7)
 #define IT8XXX2_I2C_MDL_EN            BIT(1)
+/* 0x13: Nack Status */
+#define IT8XXX2_I2C_NST_CNS           BIT(7)
+#define IT8XXX2_I2C_NST_ID_NACK       BIT(3)
+/* 0x19: Error Status */
+#define IT8XXX2_I2C_ERR_ST_DEV1_EIRQ  BIT(0)
+/* 0x1B: Finish Status */
+#define IT8XXX2_I2C_FST_DEV1_IRQ      BIT(4)
+/* 0x1C: Error Mask */
+#define IT8XXX2_I2C_EM_DEV1_IRQ       BIT(4)
 
 /* --- General Control (GCTRL) --- */
 #define IT83XX_GCTRL_BASE 0x00F02000

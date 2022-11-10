@@ -15,12 +15,12 @@ endchoice
 config DISK_DRIVER_SDMMC
 	default y if DISK_DRIVERS
 
-config FLASH_MCUX_FLEXSPI_NOR
-	default y if FLASH
+if FLASH
 
-config FLASH_MCUX_FLEXSPI_XIP
-	default y if FLASH
-	depends on MEMC_MCUX_FLEXSPI
+config FLASH_MCUX_FLEXSPI_NOR
+	default y
+
+endif # FLASH
 
 config I2C
 	default y if KSCAN
@@ -55,12 +55,6 @@ config LV_Z_POINTER_KSCAN
 
 config LV_Z_POINTER_KSCAN_DEV_NAME
 	default "FT5336"
-
-config LV_Z_HOR_RES_MAX
-	default 480
-
-config LV_Z_VER_RES_MAX
-	default 272
 
 config LV_Z_VDB_SIZE
 	default 16

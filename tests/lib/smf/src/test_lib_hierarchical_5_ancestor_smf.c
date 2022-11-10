@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <smf.h>
+#include <zephyr/ztest.h>
+#include <zephyr/smf.h>
 
 /*
  * Hierarchical 5 Ancestor State Test Transition:

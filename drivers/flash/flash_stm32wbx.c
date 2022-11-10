@@ -7,16 +7,16 @@
 
 #define LOG_DOMAIN flash_stm32wb
 #define LOG_LEVEL CONFIG_FLASH_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_DOMAIN);
 
-#include <kernel.h>
-#include <device.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
 #include <string.h>
-#include <drivers/flash.h>
-#include <init.h>
+#include <zephyr/drivers/flash.h>
+#include <zephyr/init.h>
 #include <soc.h>
-#include <sys/__assert.h>
+#include <zephyr/sys/__assert.h>
 
 #include "flash_stm32.h"
 #include "stm32_hsem.h"
@@ -114,8 +114,9 @@ static int write_dword(const struct device *dev, off_t offset, uint64_t val)
 		 * However, keeping that code make it compatible with both
 		 * mechanisms.
 		 */
-		while (LL_FLASH_IsActiveFlag_OperationSuspended())
+		while (LL_FLASH_IsActiveFlag_OperationSuspended()) {
 			;
+		}
 
 		/* Enter critical section */
 		key = irq_lock();
@@ -250,8 +251,9 @@ static int erase_page(const struct device *dev, uint32_t page)
 		 * However, keeping that code make it compatible with both
 		 * mechanisms.
 		 */
-		while (LL_FLASH_IsActiveFlag_OperationSuspended())
+		while (LL_FLASH_IsActiveFlag_OperationSuspended()) {
 			;
+		}
 
 		/* Enter critical section */
 		key = irq_lock();

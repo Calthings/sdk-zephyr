@@ -29,12 +29,13 @@
  */
 
 #include <assert.h>
-#include <drivers/clock_control.h>
-#include <drivers/i2c.h>
-#include <dt-bindings/i2c/i2c.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/pinctrl.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 #include <soc.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_npcx_port, LOG_LEVEL_ERR);
 
 #include "i2c_npcx_controller.h"
@@ -42,12 +43,11 @@ LOG_MODULE_REGISTER(i2c_npcx_port, LOG_LEVEL_ERR);
 
 /* Device config */
 struct i2c_npcx_port_config {
-	/* pinmux configuration */
-	const uint8_t   alts_size;
-	const struct npcx_alt *alts_list;
 	uint32_t bitrate;
 	uint8_t port;
 	const struct device *i2c_ctrl;
+	/* pinmux configuration */
+	const struct pinctrl_dev_config *pcfg;
 };
 
 /* I2C api functions */
@@ -62,7 +62,7 @@ static int i2c_npcx_port_configure(const struct device *dev,
 		return -EIO;
 	}
 
-	if (!(dev_config & I2C_MODE_MASTER)) {
+	if (!(dev_config & I2C_MODE_CONTROLLER)) {
 		return -ENOTSUP;
 	}
 
@@ -87,7 +87,7 @@ static int i2c_npcx_port_get_config(const struct device *dev, uint32_t *dev_conf
 
 	ret = npcx_i2c_ctrl_get_speed(config->i2c_ctrl, &speed);
 	if (!ret) {
-		*dev_config = (I2C_MODE_MASTER | speed);
+		*dev_config = (I2C_MODE_CONTROLLER | speed);
 	}
 
 	return ret;
@@ -131,10 +131,15 @@ static int i2c_npcx_port_init(const struct device *dev)
 	int ret;
 
 	/* Configure pin-mux for I2C device */
-	npcx_pinctrl_mux_configure(config->alts_list, config->alts_size, 1);
+	ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+	if (ret < 0) {
+		LOG_ERR("I2C pinctrl setup failed (%d)", ret);
+		return ret;
+	}
+
 
 	/* Setup initial i2c configuration */
-	i2c_config = (I2C_MODE_MASTER | i2c_map_dt_bitrate(config->bitrate));
+	i2c_config = (I2C_MODE_CONTROLLER | i2c_map_dt_bitrate(config->bitrate));
 	ret = i2c_npcx_port_configure(dev, i2c_config);
 	if (ret != 0) {
 		return ret;
@@ -151,18 +156,16 @@ static const struct i2c_driver_api i2c_port_npcx_driver_api = {
 
 /* I2C port init macro functions */
 #define NPCX_I2C_PORT_INIT(inst)                                               \
-	static const struct npcx_alt i2c_port_alts##inst[] =                   \
-					NPCX_DT_ALT_ITEMS_LIST(inst);          \
+	PINCTRL_DT_INST_DEFINE(inst);					       \
 									       \
 	static const struct i2c_npcx_port_config i2c_npcx_port_cfg_##inst = {  \
 		.port = DT_INST_PROP(inst, port),                              \
 		.bitrate = DT_INST_PROP(inst, clock_frequency),                \
-		.alts_size = ARRAY_SIZE(i2c_port_alts##inst),                  \
-		.alts_list = i2c_port_alts##inst,                              \
 		.i2c_ctrl = DEVICE_DT_GET(DT_INST_PHANDLE(inst, controller)),  \
+		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                  \
 	};                                                                     \
 									       \
-	DEVICE_DT_INST_DEFINE(inst,                                            \
+	I2C_DEVICE_DT_INST_DEFINE(inst,                                        \
 			    i2c_npcx_port_init,                                \
 			    NULL, NULL,                                        \
 			    &i2c_npcx_port_cfg_##inst,                         \

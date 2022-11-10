@@ -8,7 +8,7 @@
 #define __INTEL_DAI_DRIVER_SSP_H__
 
 #include <stdint.h>
-#include <drivers/dai.h>
+#include <zephyr/drivers/dai.h>
 #include "dai-params-intel-ipc3.h"
 #include "dai-params-intel-ipc4.h"
 
@@ -40,7 +40,7 @@
 #define DAI_INTEL_SSP_PLATFORM_DEFAULT_DELAY	12
 #define DAI_INTEL_SSP_DEFAULT_TRY_TIMES		8
 
-#if CONFIG_SOC_SERIES_INTEL_CAVS_V15
+#if CONFIG_SOC_INTEL_CAVS_V15
 /** \brief Number of 'base' SSP ports available */
 #define DAI_INTEL_SSP_NUM_BASE			4
 /** \brief Number of 'extended' SSP ports available */
@@ -130,6 +130,8 @@
 #define SSCR2_LJDFD		BIT(17)
 #define SSCR2_MMRATF		BIT(18)
 #define SSCR2_SMTATF		BIT(19)
+#define SSCR2_SFRMEN		BIT(20)
+#define SSCR2_ACIOLBS		BIT(21)
 
 /* SSR bits */
 #define SSSR_TNF		BIT(2)

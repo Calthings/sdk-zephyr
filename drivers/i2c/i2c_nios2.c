@@ -7,14 +7,14 @@
 #define DT_DRV_COMPAT altr_nios2_i2c
 
 #include <errno.h>
-#include <drivers/i2c.h>
+#include <zephyr/drivers/i2c.h>
 #include <soc.h>
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 #include <altera_common.h>
 #include "altera_avalon_i2c.h"
 
 #define LOG_LEVEL CONFIG_I2C_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_nios2);
 
 #define NIOS2_I2C_TIMEOUT_USEC		1000
@@ -33,7 +33,7 @@ i2c_nios2_configure(const struct device *dev, uint32_t dev_config)
 	int32_t rc = 0;
 
 	k_sem_take(&data->sem_lock, K_FOREVER);
-	if (!(I2C_MODE_MASTER & dev_config)) {
+	if (!(I2C_MODE_CONTROLLER & dev_config)) {
 		LOG_ERR("i2c config mode error\n");
 		rc = -EINVAL;
 		goto i2c_cfg_err;
@@ -173,7 +173,7 @@ static int i2c_nios2_init(const struct device *dev)
 	k_sem_init(&data->sem_lock, 1, 1);
 
 	rc = i2c_nios2_configure(dev,
-			I2C_MODE_MASTER |
+			I2C_MODE_CONTROLLER |
 			I2C_SPEED_SET(I2C_SPEED_STANDARD));
 	if (rc) {
 		LOG_ERR("i2c configure failed %d\n", rc);

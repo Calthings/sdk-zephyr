@@ -12,12 +12,13 @@
  *        for RISC-V processors
  */
 
-#include <kernel.h>
-#include <arch/cpu.h>
-#include <init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/init.h>
 #include <soc.h>
 
-#include <sw_isr_table.h>
+#include <zephyr/sw_isr_table.h>
+#include <zephyr/drivers/interrupt_controller/riscv_plic.h>
 
 #define PLIC_MAX_PRIO	DT_INST_PROP(0, riscv_max_priority)
 #define PLIC_PRIO	DT_INST_REG_ADDR_BY_NAME(0, prio)

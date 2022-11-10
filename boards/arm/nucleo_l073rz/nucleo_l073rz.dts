@@ -18,6 +18,7 @@
 		zephyr,shell-uart = &usart2;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
+		zephyr,entropy = &rng;
 	};
 
 	leds {
@@ -50,6 +51,7 @@
 		led0 = &green_led_2;
 		sw0 = &user_button;
 		pwm-led0 = &green_pwm_led;
+		watchdog0 = &iwdg;
 	};
 };
 
@@ -125,4 +127,8 @@
 		pinctrl-0 = <&tim2_ch1_pa5>;
 		pinctrl-names = "default";
 	};
+};
+
+&rng {
+	status = "okay";
 };

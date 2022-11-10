@@ -4,21 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <soc.h>
-#include <drivers/interrupt_controller/intc_esp32.h>
+#include <zephyr/drivers/interrupt_controller/intc_esp32.h>
 #include "esp_attr.h"
 #include <hal/cpu_hal.h>
 #include <hal/interrupt_controller_hal.h>
 #include <limits.h>
 #include <assert.h>
 #include "soc/soc.h"
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(esp32_intc, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define ETS_INTERNAL_TIMER0_INTR_NO 6
@@ -41,7 +41,7 @@ LOG_MODULE_REGISTER(esp32_intc, CONFIG_LOG_DEFAULT_LEVEL);
 #ifdef CONFIG_INTC_ESP32_DECISIONS_LOG
 # define INTC_LOG(...) LOG_INF(__VA_ARGS__)
 #else
-# define INTC_LOG(...) do {} while (0)
+# define INTC_LOG(...) do {} while (false)
 #endif
 
 /* Typedef for C-callable interrupt handler function */

@@ -47,6 +47,9 @@
 		led1 = &green_led_1;
 		sw0 = &user_button;
 		eswifi0 = &wifi0;
+		watchdog0 = &iwdg;
+		spi-flash0 = &mx25r6435f;
+		accel0 = &lsm6dsl;
 	};
 };
 
@@ -117,7 +120,7 @@
 		label = "LPS22HB";
 	};
 
-	lsm6dsl@6a {
+	lsm6dsl: lsm6dsl@6a {
 		compatible = "st,lsm6dsl";
 		reg = <0x6a>;
 		irq-gpios = <&gpiod 11 GPIO_ACTIVE_HIGH>;
@@ -186,7 +189,7 @@
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x00010000>;
+			reg = <0x00000000 DT_SIZE_K(64)>;
 			read-only;
 		};
 
@@ -197,12 +200,12 @@
 
 		slot0_partition: partition@20000 {
 			label = "image-0";
-			reg = <0x00020000 0x000D8000>;
+			reg = <0x00020000 DT_SIZE_K(864)>;
 		};
 
 		scratch_partition: partition@f8000 {
 			label = "image-scratch";
-			reg = <0x000F8000 0x00004000>;
+			reg = <0x000F8000 DT_SIZE_K(16)>;
 		};
 	};
 };
@@ -284,7 +287,7 @@ zephyr_udc0: &usbotg_fs {
 
 			slot1_partition: partition@0 {
 				label = "image-1";
-				reg = <0x00000000 0x000d8000>;
+				reg = <0x00000000 DT_SIZE_K(864)>;
 				};
 
 			storage_partition: partition@d8000 {

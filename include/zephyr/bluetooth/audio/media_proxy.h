@@ -38,7 +38,7 @@
 
 #include <stdbool.h>
 #include <zephyr/types.h>
-#include <bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/bluetooth.h>
 
 /* TODO: Remove dependency on mcs.h */
 #include "mcs.h"
@@ -234,6 +234,10 @@ struct mpl_search {
  */
 #define MEDIA_PROXY_SEARCH_SUCCESS  0x01
 #define MEDIA_PROXY_SEARCH_FAILURE  0x02
+
+/* Group object object types */
+#define MEDIA_PROXY_GROUP_OBJECT_TRACK_TYPE 0x00
+#define MEDIA_PROXY_GROUP_OBJECT_GROUP_TYPE 0x01
 
 
 /**
@@ -593,7 +597,7 @@ struct media_proxy_ctrl_cbs {
 	 *                 or errno on negative value.
 	 * @param cmd      The command sent
 	 */
-	void (*command_send)(struct media_player *player, int err, struct mpl_cmd cmd);
+	void (*command_send)(struct media_player *player, int err, const struct mpl_cmd *cmd);
 
 	/**
 	 * @brief Command result receive callback
@@ -606,7 +610,8 @@ struct media_proxy_ctrl_cbs {
 	 *                 or errno on negative value.
 	 * @param result   The result received
 	 */
-	void (*command_recv)(struct media_player *player, int err, struct mpl_cmd_ntf result);
+	void (*command_recv)(struct media_player *player, int err,
+			     const struct mpl_cmd_ntf *result);
 
 	/**
 	 * @brief Commands supported receive callback
@@ -632,7 +637,7 @@ struct media_proxy_ctrl_cbs {
 	 *                      or errno on negative value.
 	 * @param search        The search sent
 	 */
-	void (*search_send)(struct media_player *player, int err, struct mpl_search search);
+	void (*search_send)(struct media_player *player, int err, const struct mpl_search *search);
 
 	/**
 	 * @brief Search result code receive callback
@@ -1035,7 +1040,7 @@ int media_proxy_ctrl_get_media_state(struct media_player *player);
  *
  * @return 0 if success, errno on failure.
  */
-int media_proxy_ctrl_send_command(struct media_player *player, struct mpl_cmd command);
+int media_proxy_ctrl_send_command(struct media_player *player, const struct mpl_cmd *command);
 
 /**
  * @brief Read Commands Supported
@@ -1068,7 +1073,7 @@ int media_proxy_ctrl_get_commands_supported(struct media_player *player);
  *
  * @return 0 if success, errno on failure.
  */
-int media_proxy_ctrl_send_search(struct media_player *player, struct mpl_search search);
+int media_proxy_ctrl_send_search(struct media_player *player, const struct mpl_search *search);
 
 /**
  * @brief Read Search Results Object ID
@@ -1334,9 +1339,8 @@ struct media_proxy_pl_calls {
 	/**
 	 * @brief Set Playing Order
 	 *
-	 * Set the media player's playing order
-	 * See the Media Control Service spec, or the
-	 * BT_MCS_PLAYING_ORDER_* defines in the mcs.h file.
+	 * Set the media player's playing order.
+	 * See the MEDIA_PROXY_PLAYING_ORDER_* defines.
 	 *
 	 * @param order	The playing order to set
 	 */
@@ -1347,9 +1351,7 @@ struct media_proxy_pl_calls {
 	 *
 	 * Read a bitmap containing the media player's supported
 	 * playing orders.
-	 * See the Media Control Service spec, or the
-	 * BT_MCS_PLAYING_ORDERS_SUPPORTED_* defines in the mcs.h
-	 * file.
+	 * See the MEDIA_PROXY_PLAYING_ORDERS_SUPPORTED_* defines.
 	 *
 	 * @return The media player's supported playing orders
 	 */
@@ -1359,8 +1361,7 @@ struct media_proxy_pl_calls {
 	 * @brief Read Media State
 	 *
 	 * Read the media player's state
-	 * See the Media Control Service spec, or the
-	 * BT_MCS_MEDIA_STATE_* defines in the mcs.h file.
+	 * See the MEDIA_PROXY_MEDIA_STATE_* defines.
 	 *
 	 * @return The media player's state
 	 */
@@ -1370,21 +1371,19 @@ struct media_proxy_pl_calls {
 	 * @brief Send Command
 	 *
 	 * Send a command to the media player.
-	 * For command opcodes (play, pause, ... - see the Media Control
-	 * Service spec, or the BT_MCS_OPC_* defines in the mcs.h
-	 * file.
+	 * For command opcodes (play, pause, ...) - see the MEDIA_PROXY_OP_*
+	 * defines.
 	 *
 	 * @param command	The command to send
 	 */
-	void (*send_command)(struct mpl_cmd command);
+	void (*send_command)(const struct mpl_cmd *command);
 
 	/**
 	 * @brief Read Commands Supported
 	 *
 	 * Read a bitmap containing the media player's supported
-	 * command opcodes..
-	 * See the Media Control Service spec, or the
-	 * BT_MCS_OPC_SUP_* defines in the mcs.h file.
+	 * command opcodes.
+	 * See the MEDIA_PROXY_OP_SUP_* defines.
 	 *
 	 * @return The media player's supported command opcodes
 	 */
@@ -1399,7 +1398,7 @@ struct media_proxy_pl_calls {
 	 *
 	 * @param search	The search to write
 	 */
-	void (*send_search)(struct mpl_search search);
+	void (*send_search)(const struct mpl_search *search);
 
 	/**
 	 * @brief Read Search Results Object ID
@@ -1573,12 +1572,11 @@ void media_proxy_pl_media_state_cb(uint8_t state);
  *
  * To be called when a command has been sent, to notify whether the
  * command was successfully performed or not.
- * See the Media Control Service spec, or the BT_MCS_OPC_NTF_*
- * defines in the mcs.h file.
+ * See the MEDIA_PROXY_CMD_* result code defines.
  *
  * @param cmd_ntf	The result of the command
  */
-void media_proxy_pl_command_cb(struct mpl_cmd_ntf cmd_ntf);
+void media_proxy_pl_command_cb(const struct mpl_cmd_ntf *cmd_ntf);
 
 /**
  * @brief Commands supported callback
@@ -1594,8 +1592,7 @@ void media_proxy_pl_commands_supported_cb(uint32_t opcodes);
  *
  * To be called when a search has been set to notify whether the
  * search was successfully performed or not.
- * See the Media Control Service spec, or the BT_MCS_SCP_NTF_*
- * defines in the mcs.h file.
+ * See the MEDIA_PROXY_SEARCH_* result code defines.
  *
  * The actual results of the search, if successful, can be found in
  * the search results object.

@@ -7,7 +7,7 @@
 /dts-v1/;
 
 #include <nxp/nxp_k2x.dtsi>
-#include <dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
 #include "frdm_k22f-pinctrl.dtsi"
 
 / {
@@ -24,6 +24,8 @@
 		green-pwm-led = &green_pwm_led;
 		blue-pwm-led = &blue_pwm_led;
 		red-pwm-led = &red_pwm_led;
+		magn0 = &fxos8700;
+		accel0 = &fxos8700;
 	};
 
 	chosen {
@@ -128,7 +130,7 @@ arduino_i2c: &i2c0 {
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
 
-	fxos8700@1c {
+	fxos8700: fxos8700@1c {
 		compatible = "nxp,fxos8700";
 		reg = <0x1c>;
 		label = "FXOS8700";

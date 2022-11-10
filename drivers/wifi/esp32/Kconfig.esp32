@@ -4,6 +4,7 @@ menuconfig WIFI_ESP32
 	bool "ESP32 SoC WiFi support"
 	depends on !SMP
 	select THREAD_CUSTOM_DATA
+	select WIFI_USE_NATIVE_NETWORKING
 	help
 	  Enable ESP32 SoC WiFi support. Only supported in single
 	  core mode because the network stack is not aware of SMP
@@ -210,18 +211,6 @@ choice ESP32_WIFI_TASK_CORE_ID
 		bool "Core 0"
 endchoice
 
-config ESP32_PHY_MAX_WIFI_TX_POWER
-	int "Max WiFi TX power (dBm)"
-	range 10 20
-	default 20
-	help
-	  Set maximum transmit power for WiFi radio. Actual transmit power for high
-	  data rates may be lower than this setting.
-
-config ESP32_PHY_MAX_TX_POWER
-	int
-	default ESP32_PHY_MAX_WIFI_TX_POWER
-
 config ESP32_WIFI_SW_COEXIST_ENABLE
 	bool
 	help
@@ -242,5 +231,12 @@ config ESP32_WIFI_RX_IRAM_OPT
 	  Select this option to place frequently called Wi-Fi library RX functions in IRAM.
 	  When this option is disabled, more than 17Kbytes of IRAM memory will be saved
 	  but Wi-Fi performance will be reduced.
+
+config ESP32_WIFI_NET_ALLOC_SPIRAM
+	bool "Allocate memory of WiFi and NET in SPIRAM"
+	depends on ESP_SPIRAM
+	help
+	  Allocate memory of WiFi and NET stack in SPIRAM, increasing available RAM memory space
+	  for application stack.
 
 endif # WIFI_ESP32

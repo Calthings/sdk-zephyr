@@ -7,6 +7,11 @@
 #ifndef ZEPHYR_INCLUDE_ARCH_ARM64_ARM_MMU_H_
 #define ZEPHYR_INCLUDE_ARCH_ARM64_ARM_MMU_H_
 
+#ifndef _ASMLANGUAGE
+#include <stdint.h>
+#include <stdlib.h>
+#endif
+
 /* Following Memory types supported through MAIR encodings can be passed
  * by user through "attrs"(attributes) field of specified memory region.
  * As MAIR supports such 8 encodings, we will reserve attrs[2:0];
@@ -133,6 +138,9 @@
 #define TCR_TG0_64K		(1ULL << 14)
 #define TCR_TG0_16K		(2ULL << 14)
 #define TCR_EPD1_DISABLE	(1ULL << 23)
+#define TCR_TG1_16K		(1ULL << 30)
+#define TCR_TG1_4K		(2ULL << 30)
+#define TCR_TG1_64K		(3ULL << 30)
 
 #define TCR_PS_BITS_4GB		0x0ULL
 #define TCR_PS_BITS_64GB	0x1ULL

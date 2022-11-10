@@ -8,17 +8,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <sys/byteorder.h>
-#include <sys/check.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/check.h>
 
-#include <device.h>
-#include <init.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/gatt.h>
-#include <bluetooth/audio/audio.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/audio/audio.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_ASCS)
 #define LOG_MODULE_NAME bt_ascs
@@ -30,12 +30,13 @@
 #include "endpoint.h"
 #include "unicast_server.h"
 #include "pacs_internal.h"
+#include "cap_internal.h"
 
 #if defined(CONFIG_BT_AUDIO_UNICAST_SERVER)
 
 #define ASE_ID(_ase) ase->ep.status.id
 #define ASE_DIR(_id) \
-	(_id > CONFIG_BT_ASCS_ASE_SNK_COUNT ? BT_AUDIO_SOURCE : BT_AUDIO_SINK)
+	(_id > CONFIG_BT_ASCS_ASE_SNK_COUNT ? BT_AUDIO_DIR_SOURCE : BT_AUDIO_DIR_SINK)
 #define ASE_UUID(_id) \
 	(_id > CONFIG_BT_ASCS_ASE_SNK_COUNT ? BT_UUID_ASCS_ASE_SRC : BT_UUID_ASCS_ASE_SNK)
 #define ASE_COUNT (CONFIG_BT_ASCS_ASE_SNK_COUNT + CONFIG_BT_ASCS_ASE_SRC_COUNT)
@@ -51,6 +52,10 @@ struct bt_ascs {
 	uint8_t id;
 	bt_addr_le_t peer;
 	struct bt_ascs_ase ases[ASE_COUNT];
+	/* A single iso_channel may be used for 1 or 2 ases.
+	 * Controlled by the client.
+	 */
+	struct bt_audio_iso isos[ASE_COUNT];
 	struct bt_gatt_notify_params params;
 	uint16_t handle;
 };
@@ -70,6 +75,33 @@ static void ase_status_changed(struct bt_audio_ep *ep, uint8_t old_state,
 	}
 
 	k_work_submit(&ase->work);
+}
+
+static void ascs_ep_unbind_audio_iso(struct bt_audio_ep *ep)
+{
+	struct bt_audio_iso *audio_iso = ep->iso;
+	struct bt_audio_stream *stream = ep->stream;
+
+	if (audio_iso != NULL) {
+		struct bt_iso_chan_qos *qos;
+
+		qos = audio_iso->iso_chan.qos;
+
+		BT_ASSERT_MSG(stream != NULL, "Stream was NULL");
+
+		stream->iso = NULL;
+		if (audio_iso->sink_stream == stream) {
+			audio_iso->sink_stream = NULL;
+			qos->rx = NULL;
+		} else if (audio_iso->source_stream == stream) {
+			audio_iso->source_stream = NULL;
+			qos->tx = NULL;
+		} else {
+			BT_ERR("Stream %p not linked to audio_iso %p", stream, audio_iso);
+		}
+	}
+
+	ep->iso = NULL;
 }
 
 void ascs_ep_set_state(struct bt_audio_ep *ep, uint8_t state)
@@ -133,14 +165,17 @@ void ascs_ep_set_state(struct bt_audio_ep *ep, uint8_t state)
 				ops->disabled(stream);
 			}
 			break;
+		case BT_AUDIO_EP_STATE_RELEASING:
+			break; /* no-op*/
 		default:
 			BT_ERR("Invalid state: %u", state);
 			break;
 		}
 	}
 
-	if (state == BT_AUDIO_EP_STATE_IDLE) {
-		bt_audio_stream_detach(ep->stream);
+	if (state == BT_AUDIO_EP_STATE_CODEC_CONFIGURED &&
+	    old_state != BT_AUDIO_EP_STATE_IDLE) {
+		ascs_ep_unbind_audio_iso(ep);
 	}
 }
 
@@ -284,13 +319,28 @@ static void ascs_iso_recv(struct bt_iso_chan *chan,
 			  const struct bt_iso_recv_info *info,
 			  struct net_buf *buf)
 {
-	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
-	struct bt_audio_stream_ops *ops = ep->stream->ops;
+	struct bt_audio_iso *audio_iso = CONTAINER_OF(chan, struct bt_audio_iso,
+						      iso_chan);
+	struct bt_audio_stream *stream = audio_iso->sink_stream;
+	const struct bt_audio_stream_ops *ops;
 
-	BT_DBG("stream %p ep %p len %zu", chan, ep, net_buf_frags_len(buf));
+	if (stream == NULL) {
+		BT_ERR("Could not lookup stream by iso %p", chan);
+		return;
+	} else if (stream->ep == NULL) {
+		BT_ERR("Stream not associated with an ep");
+		return;
+	}
+
+	ops = stream->ops;
+
+	if (IS_ENABLED(CONFIG_BT_AUDIO_DEBUG_STREAM_DATA)) {
+		BT_DBG("stream %p ep %p len %zu",
+		       stream, stream->ep, net_buf_frags_len(buf));
+	}
 
 	if (ops != NULL && ops->recv != NULL) {
-		ops->recv(ep->stream, buf);
+		ops->recv(stream, info, buf);
 	} else {
 		BT_WARN("No callback for recv set");
 	}
@@ -298,21 +348,44 @@ static void ascs_iso_recv(struct bt_iso_chan *chan,
 
 static void ascs_iso_sent(struct bt_iso_chan *chan)
 {
-	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
-	struct bt_audio_stream_ops *ops = ep->stream->ops;
+	struct bt_audio_iso *audio_iso = CONTAINER_OF(chan, struct bt_audio_iso,
+						      iso_chan);
+	struct bt_audio_stream *stream = audio_iso->source_stream;
+	struct bt_audio_stream_ops *ops = stream->ops;
 
-	BT_DBG("stream %p ep %p", chan, ep);
+	BT_DBG("stream %p ep %p", stream, stream->ep);
 
 	if (ops != NULL && ops->sent != NULL) {
-		ops->sent(ep->stream);
+		ops->sent(stream);
 	}
 }
 
 static void ascs_iso_connected(struct bt_iso_chan *chan)
 {
-	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
+	struct bt_audio_iso *audio_iso = CONTAINER_OF(chan, struct bt_audio_iso,
+						      iso_chan);
+	struct bt_audio_stream *source_stream = audio_iso->source_stream;
+	struct bt_audio_stream *sink_stream = audio_iso->sink_stream;
+	struct bt_audio_stream *stream;
+	struct bt_audio_ep *ep;
 
-	BT_DBG("stream %p ep %p type %u", chan, ep, ep != NULL ? ep->type : 0);
+	if (sink_stream->iso == chan) {
+		stream = sink_stream;
+	} else {
+		stream = source_stream;
+	}
+
+	if (stream == NULL) {
+		BT_ERR("Could not lookup stream by iso %p", chan);
+		return;
+	} else if (stream->ep == NULL) {
+		BT_ERR("Stream not associated with an ep");
+		return;
+	}
+
+	ep = stream->ep;
+
+	BT_DBG("stream %p ep %p dir %u", stream, ep, ep->dir);
 
 	if (ep->status.state != BT_AUDIO_EP_STATE_ENABLING) {
 		BT_DBG("endpoint not in enabling state: %s",
@@ -325,11 +398,31 @@ static void ascs_iso_connected(struct bt_iso_chan *chan)
 
 static void ascs_iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
 {
-	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
-	struct bt_audio_stream *stream = ep->stream;
-	struct bt_audio_stream_ops *ops = stream->ops;
+	struct bt_audio_iso *audio_iso = CONTAINER_OF(chan, struct bt_audio_iso,
+						      iso_chan);
+	struct bt_audio_stream *source_stream = audio_iso->source_stream;
+	struct bt_audio_stream *sink_stream = audio_iso->sink_stream;
+	const struct bt_audio_stream_ops *ops;
+	struct bt_audio_stream *stream;
+	struct bt_audio_ep *ep;
 
-	BT_DBG("stream %p ep %p reason 0x%02x", chan, ep, reason);
+	if (sink_stream->iso == chan) {
+		stream = sink_stream;
+	} else {
+		stream = source_stream;
+	}
+
+	if (stream == NULL) {
+		BT_ERR("Could not lookup stream by iso %p", chan);
+		return;
+	} else if (stream->ep == NULL) {
+		BT_ERR("Stream not associated with an ep");
+		return;
+	}
+
+	ops = stream->ops;
+
+	BT_DBG("stream %p ep %p reason 0x%02x", stream, stream->ep, reason);
 
 	if (ops != NULL && ops->stopped != NULL) {
 		ops->stopped(stream);
@@ -337,6 +430,7 @@ static void ascs_iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
 		BT_WARN("No callback for stopped set");
 	}
 
+	ep = stream->ep;
 	if (ep->status.state == BT_AUDIO_EP_STATE_RELEASING) {
 		ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_CODEC_CONFIGURED);
 	} else {
@@ -345,7 +439,7 @@ static void ascs_iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
 		/* The ASE state machine goes into different states from this operation
 		 * based on whether it is a source or a sink ASE.
 		 */
-		if (ep->dir == BT_AUDIO_SOURCE) {
+		if (ep->dir == BT_AUDIO_DIR_SOURCE) {
 			ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_DISABLING);
 		} else {
 			ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_QOS_CONFIGURED);
@@ -469,6 +563,16 @@ static void ascs_cp_rsp_add_errno(uint8_t id, uint8_t op, int err,
 	case -EBADMSG:
 		return ascs_cp_rsp_add(id, op, BT_ASCS_RSP_INVALID_ASE_STATE,
 					       BT_ASCS_REASON_NONE);
+	case -EACCES:
+		switch (op) {
+		case BT_ASCS_METADATA_OP:
+			return ascs_cp_rsp_add(id, op,
+					       BT_ASCS_RSP_METADATA_REJECTED,
+					       reason);
+		default:
+			return ascs_cp_rsp_add(id, op, BT_ASCS_RSP_UNSPECIFIED,
+					       BT_ASCS_REASON_NONE);
+		}
 	default:
 		return ascs_cp_rsp_add(id, op, BT_ASCS_RSP_UNSPECIFIED,
 				       BT_ASCS_REASON_NONE);
@@ -532,14 +636,16 @@ static void ascs_clear(struct bt_ascs *ascs)
 	for (i = 0; i < ASE_COUNT; i++) {
 		struct bt_ascs_ase *ase = &ascs->ases[i];
 
-		if (ase->ep.status.state != BT_AUDIO_EP_STATE_IDLE) {
-			ase_release(ase, false);
-			ascs_ep_set_state(&ase->ep, BT_AUDIO_EP_STATE_IDLE);
+		if (ase->ep.status.state == BT_AUDIO_EP_STATE_IDLE) {
+			continue;
 		}
-	}
 
-	bt_conn_unref(ascs->conn);
-	ascs->conn = NULL;
+		if (ase->ep.status.state != BT_AUDIO_EP_STATE_RELEASING) {
+			ase_release(ase, false);
+		}
+
+		ascs_ep_set_state(&ase->ep, BT_AUDIO_EP_STATE_IDLE);
+	}
 }
 
 static void ase_disable(struct bt_ascs_ase *ase)
@@ -584,7 +690,7 @@ static void ase_disable(struct bt_ascs_ase *ase)
 	/* The ASE state machine goes into different states from this operation
 	 * based on whether it is a source or a sink ASE.
 	 */
-	if (ep->dir == BT_AUDIO_SOURCE) {
+	if (ep->dir == BT_AUDIO_DIR_SOURCE) {
 		ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_DISABLING);
 	} else {
 		ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_QOS_CONFIGURED);
@@ -608,14 +714,12 @@ static void ascs_detach(struct bt_ascs *ascs)
 	for (i = 0; i < ASE_COUNT; i++) {
 		struct bt_ascs_ase *ase = &ascs->ases[i];
 
-		if (ase->ep.status.state != BT_AUDIO_EP_STATE_IDLE) {
+		if (ase->ep.status.state != BT_AUDIO_EP_STATE_IDLE &&
+		    ase->ep.status.state != BT_AUDIO_EP_STATE_RELEASING) {
 			/* Cache if disconnected with codec configured */
 			ase_release(ase, true);
 		}
 	}
-
-	bt_conn_unref(ascs->conn);
-	ascs->conn = NULL;
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -625,15 +729,29 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	BT_DBG("");
 
 	for (i = 0; i < CONFIG_BT_MAX_CONN; i++) {
-		if (sessions[i].conn != conn) {
+		struct bt_ascs *ascs = &sessions[i];
+
+		if (ascs->conn != conn) {
 			continue;
 		}
 
 		/* Release existing ASEs if not bonded */
 		if (!bt_addr_le_is_bonded(conn->id, &conn->le.dst)) {
-			ascs_clear(&sessions[i]);
+			ascs_clear(ascs);
 		} else {
-			ascs_detach(&sessions[i]);
+			ascs_detach(ascs);
+		}
+
+		bt_conn_unref(ascs->conn);
+		ascs->conn = NULL;
+
+		for (size_t i = 0U; i < ARRAY_SIZE(ascs->ases); i++) {
+			struct bt_audio_stream *stream = ascs->ases[i].ep.stream;
+
+			if (stream != NULL && stream->conn != NULL) {
+				bt_conn_unref(stream->conn);
+				stream->conn = NULL;
+			}
 		}
 	}
 }
@@ -650,6 +768,60 @@ static uint8_t ascs_attr_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	ascs->handle = handle;
 
 	return BT_GATT_ITER_CONTINUE;
+}
+
+struct bt_audio_iso *ascs_new_audio_iso(const struct bt_audio_stream *stream,
+					struct bt_ascs *ascs,
+					uint8_t cig_id,
+					uint8_t cis_id)
+{
+	const enum bt_audio_dir dir = stream->ep->dir;
+	struct bt_audio_iso *free_audio_iso = NULL;
+
+	BT_DBG("stream %p dir %u ascs %p", stream, dir, ascs);
+
+	/* Look through the audio_isos and find a free one, or one for the same
+	 * ACL connection where the opposite direction is what we want, and is
+	 * free.
+	 *
+	 * The returned audio_iso is either an unused one, or one where @p
+	 * stream can be used in the opposite direction.
+	 */
+	for (size_t i = 0; i < ARRAY_SIZE(ascs->isos); i++) {
+		struct bt_audio_iso *audio_iso = &ascs->isos[i];
+		const struct bt_conn *acl_conn = stream->conn;
+		const struct bt_audio_stream *paired_stream;
+		const struct bt_audio_stream *tmp_stream;
+
+		switch (dir) {
+		case BT_AUDIO_DIR_SINK:
+			tmp_stream = audio_iso->sink_stream;
+			paired_stream = audio_iso->source_stream;
+			break;
+		case BT_AUDIO_DIR_SOURCE:
+			tmp_stream = audio_iso->source_stream;
+			paired_stream = audio_iso->sink_stream;
+			break;
+		default:
+			return NULL;
+		}
+
+		if (tmp_stream == NULL) {
+			if (free_audio_iso == NULL) {
+				free_audio_iso = audio_iso;
+			}
+		} else if (paired_stream != NULL &&
+			   paired_stream->ep->cig_id == cig_id &&
+			   paired_stream->ep->cis_id == cis_id &&
+			   paired_stream->ep->stream->conn == acl_conn) {
+			BT_DBG("Use existing audio_iso %p together with stream %p",
+			       audio_iso, paired_stream);
+
+			return audio_iso;
+		}
+	}
+
+	return free_audio_iso;
 }
 
 static struct bt_ascs *ascs_new(struct bt_conn *conn)
@@ -692,7 +864,7 @@ static void ase_stream_add(struct bt_ascs *ascs, struct bt_ascs_ase *ase,
 	ase->ep.stream = stream;
 	stream->conn = ascs->conn;
 	stream->ep = &ase->ep;
-	stream->iso = &ase->ep.iso;
+	stream->iso = &ase->ep.iso->iso_chan;
 }
 
 static void ascs_attach(struct bt_ascs *ascs, struct bt_conn *conn)
@@ -753,6 +925,8 @@ static void ase_process(struct k_work *work)
 	struct bt_ascs_ase *ase = CONTAINER_OF(work, struct bt_ascs_ase, work);
 	struct bt_gatt_attr attr;
 
+	BT_DBG("ase %p, ep %p, ep.stream %p", ase, &ase->ep, ase->ep.stream);
+
 	ascs_ep_get_status(&ase->ep, &ase_buf);
 
 	memset(&attr, 0, sizeof(attr));
@@ -761,13 +935,12 @@ static void ase_process(struct k_work *work)
 
 	bt_gatt_notify(ase->ascs->conn, &attr, ase_buf.data, ase_buf.len);
 
-	if (ase->ep.status.state == BT_AUDIO_EP_STATE_RELEASING &&
-	    ase->ep.stream == NULL) {
-		ascs_ep_set_state(&ase->ep, BT_AUDIO_EP_STATE_IDLE);
-	}
+	if (ase->ep.status.state == BT_AUDIO_EP_STATE_RELEASING) {
+		__ASSERT(ase->ep.stream, "stream is NULL");
 
-	if (ase->ep.status.state == BT_AUDIO_EP_STATE_IDLE) {
-		return;
+		ascs_ep_unbind_audio_iso(&ase->ep);
+		bt_audio_stream_detach(ase->ep.stream);
+		ascs_ep_set_state(&ase->ep, BT_AUDIO_EP_STATE_IDLE);
 	}
 }
 
@@ -781,17 +954,40 @@ static uint8_t ase_attr_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	return BT_GATT_ITER_CONTINUE;
 }
 
+static void ascs_ep_stream_bind_audio_iso(struct bt_audio_stream *stream,
+					  struct bt_audio_iso *audio_iso)
+{
+	const enum bt_audio_dir dir = stream->ep->dir;
+	struct bt_iso_chan *iso_chan;
+	struct bt_iso_chan_qos *qos;
+
+	BT_DBG("stream %p, dir %u audio_iso %p", stream, dir, audio_iso);
+
+	iso_chan = &audio_iso->iso_chan;
+
+	iso_chan->ops = &ascs_iso_ops;
+	qos = iso_chan->qos = &audio_iso->iso_qos;
+
+	if (dir == BT_AUDIO_DIR_SOURCE) {
+		audio_iso->source_stream = stream;
+		qos->tx = &audio_iso->source_io_qos;
+	} else if (dir == BT_AUDIO_DIR_SINK) {
+		audio_iso->sink_stream = stream;
+		qos->rx = &audio_iso->sink_io_qos;
+	} else {
+		__ASSERT(false, "Invalid dir: %u", dir);
+	}
+
+	stream->iso = iso_chan;
+	stream->ep->iso = audio_iso;
+}
+
 void ascs_ep_init(struct bt_audio_ep *ep, uint8_t id)
 {
 	BT_DBG("ep %p id 0x%02x", ep, id);
 
-	memset(ep, 0, sizeof(*ep));
-	ep->type = BT_AUDIO_EP_LOCAL;
+	(void)memset(ep, 0, sizeof(*ep));
 	ep->status.id = id;
-	ep->iso.ops = &ascs_iso_ops;
-	ep->iso.qos = &ep->iso_qos;
-	ep->iso.qos->rx = &ep->iso_rx;
-	ep->iso.qos->tx = &ep->iso_tx;
 	ep->dir = ASE_DIR(id);
 }
 
@@ -1165,15 +1361,25 @@ static ssize_t ascs_config(struct bt_ascs *ascs, struct net_buf_simple *buf)
 	return buf->size;
 }
 
-static int ase_stream_qos(struct bt_audio_stream *stream, struct bt_codec_qos *qos)
+static int ase_stream_qos(struct bt_audio_stream *stream,
+			  struct bt_codec_qos *qos,
+			  struct bt_ascs *ascs,
+			  uint8_t cig_id,
+			  uint8_t cis_id)
 {
-	BT_DBG("stream %p qos %p", stream, qos);
+	struct bt_audio_iso *audio_iso;
+	struct bt_audio_ep *ep;
+
+	BT_DBG("stream %p ep %p qos %p", stream, stream->ep, qos);
 
 	if (stream == NULL || stream->ep == NULL || qos == NULL) {
+		BT_DBG("Invalid input stream, ep or qos pointers");
 		return -EINVAL;
 	}
 
-	switch (stream->ep->status.state) {
+	ep = stream->ep;
+
+	switch (ep->status.state) {
 	/* Valid only if ASE_State field = 0x01 (Codec Configured) */
 	case BT_AUDIO_EP_STATE_CODEC_CONFIGURED:
 	/* or 0x02 (QoS Configured) */
@@ -1181,7 +1387,7 @@ static int ase_stream_qos(struct bt_audio_stream *stream, struct bt_codec_qos *q
 		break;
 	default:
 		BT_ERR("Invalid state: %s",
-		bt_audio_ep_state_str(stream->ep->status.state));
+		bt_audio_ep_state_str(ep->status.state));
 		return -EBADMSG;
 	}
 
@@ -1198,13 +1404,22 @@ static int ase_stream_qos(struct bt_audio_stream *stream, struct bt_codec_qos *q
 
 		err = unicast_server_cb->qos(stream, qos);
 		if (err != 0) {
+			BT_DBG("Application returned error: %d", err);
 			return err;
 		}
 	}
 
+	audio_iso = ascs_new_audio_iso(stream, ascs, cig_id, cis_id);
+	if (audio_iso == NULL) {
+		BT_DBG("Could not allocated new audio_iso");
+		return -ENOMEM;
+	}
+
 	stream->qos = qos;
 
-	ascs_ep_set_state(stream->ep, BT_AUDIO_EP_STATE_QOS_CONFIGURED);
+	ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_QOS_CONFIGURED);
+
+	ascs_ep_stream_bind_audio_iso(stream, audio_iso);
 	bt_audio_stream_iso_listen(stream);
 
 	return 0;
@@ -1214,6 +1429,8 @@ static void ase_qos(struct bt_ascs_ase *ase, const struct bt_ascs_qos *qos)
 {
 	struct bt_audio_stream *stream = ase->ep.stream;
 	struct bt_codec_qos *cqos = &ase->ep.qos;
+	const uint8_t cig_id = qos->cig;
+	const uint8_t cis_id = qos->cis;
 	int err;
 
 	cqos->interval = sys_get_le24(qos->interval);
@@ -1229,7 +1446,7 @@ static void ase_qos(struct bt_ascs_ase *ase, const struct bt_ascs_qos *qos)
 	       qos->cis, cqos->interval, cqos->framing, cqos->phy, cqos->sdu,
 	       cqos->rtn, cqos->latency, cqos->pd);
 
-	err = ase_stream_qos(stream, cqos);
+	err = ase_stream_qos(stream, cqos, ase->ascs, cig_id, cis_id);
 	if (err) {
 		uint8_t reason = BT_ASCS_REASON_NONE;
 
@@ -1258,8 +1475,8 @@ static void ase_qos(struct bt_ascs_ase *ase, const struct bt_ascs_qos *qos)
 		return;
 	}
 
-	ase->ep.cig_id = qos->cig;
-	ase->ep.cis_id = qos->cis;
+	ase->ep.cig_id = cig_id;
+	ase->ep.cis_id = cis_id;
 
 	ascs_cp_rsp_success(ASE_ID(ase), BT_ASCS_QOS_OP);
 }
@@ -1310,22 +1527,7 @@ static bool ascs_codec_store_metadata(struct bt_data *data, void *user_data)
 	struct bt_codec *codec = user_data;
 	struct bt_codec_data *meta;
 
-	if (codec->meta_count >= ARRAY_SIZE(codec->meta)) {
-		BT_ERR("No slot available for Codec Config Metadata");
-		return false;
-	}
-
 	meta = &codec->meta[codec->meta_count];
-
-	if (data->data_len > sizeof(meta->value)) {
-		BT_ERR("Not enough space for Codec Config Metadata: %u > %zu",
-		       data->data_len, sizeof(meta->value));
-		return false;
-	}
-
-	BT_DBG("#%u type 0x%02x len %u", codec->meta_count, data->type,
-	       data->data_len);
-
 	meta->data.type = data->type;
 	meta->data.data_len = data->data_len;
 
@@ -1333,18 +1535,125 @@ static bool ascs_codec_store_metadata(struct bt_data *data, void *user_data)
 	meta->data.data = meta->value;
 	(void)memcpy(meta->value, data->data, data->data_len);
 
-	BT_HEXDUMP_DBG(meta->value, data->data_len, "data");
+	BT_DBG("#%zu: data: %s",
+	       codec->meta_count,
+	       bt_hex(meta->value, data->data_len));
 
 	codec->meta_count++;
 
 	return true;
 }
 
-static int ascs_ep_set_metadata(struct bt_audio_ep *ep,
-				struct net_buf_simple *buf, uint8_t len,
-				struct bt_codec *codec)
+struct ascs_parse_result {
+	int err;
+	size_t count;
+	const struct bt_audio_ep *ep;
+};
+
+static bool ascs_parse_metadata(struct bt_data *data, void *user_data)
 {
-	struct net_buf_simple meta;
+	struct ascs_parse_result *result = user_data;
+	const struct bt_audio_ep *ep = result->ep;
+	const uint8_t data_len = data->data_len;
+	const uint8_t data_type = data->type;
+	const uint8_t *data_value = data->data;
+
+	result->count++;
+
+	BT_DBG("#%u type 0x%02x len %u", result->count, data_type, data_len);
+
+	if (result->count > CONFIG_BT_CODEC_MAX_METADATA_COUNT) {
+		BT_ERR("Not enough buffers for Codec Config Metadata: %zu > %zu",
+		       result->count, CONFIG_BT_CODEC_MAX_METADATA_LEN);
+		result->err = -ENOMEM;
+
+		return false;
+	}
+
+	if (data_len > CONFIG_BT_CODEC_MAX_METADATA_LEN) {
+		BT_ERR("Not enough space for Codec Config Metadata: %u > %zu",
+		       data->data_len, CONFIG_BT_CODEC_MAX_METADATA_LEN);
+		result->err = -ENOMEM;
+
+		return false;
+	}
+
+	/* The CAP acceptor shall not accept metadata with
+	 * unsupported stream context.
+	 */
+	if (IS_ENABLED(CONFIG_BT_CAP_ACCEPTOR)) {
+		if (data_type == BT_AUDIO_METADATA_TYPE_STREAM_CONTEXT) {
+			const uint16_t context = sys_get_le16(data_value);
+
+			if (!bt_pacs_context_available(ep->dir, context)) {
+				result->err = -EACCES;
+
+				return false;
+			}
+		} else if (data_type == BT_AUDIO_METADATA_TYPE_CCID_LIST) {
+			/* Verify that the CCID is a known CCID on the
+			 * writing device
+			 */
+			for (uint8_t i = 0; i < data_len; i++) {
+				const uint8_t ccid = data_value[i];
+
+				if (!bt_cap_acceptor_ccid_exist(ep->stream->conn,
+								ccid)) {
+					BT_WARN("CCID %u is unknown", ccid);
+
+					/* TBD:
+					 * Should we reject the Metadata?
+					 *
+					 * Should unknown CCIDs trigger a
+					 * discovery procedure for TBS or MCS?
+					 *
+					 * Or should we just accept as is, and
+					 * then let the application decide?
+					 */
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+static int ascs_verify_metadata(const struct net_buf_simple *buf,
+				struct bt_audio_ep *ep)
+{
+	struct ascs_parse_result result = {
+		.count = 0U,
+		.err = 0,
+		.ep = ep
+	};
+	struct net_buf_simple meta_ltv;
+
+	/* Clone the buf to avoid pulling data from the original buffer */
+	net_buf_simple_clone(buf, &meta_ltv);
+
+	/* Parse LTV entries */
+	bt_data_parse(&meta_ltv, ascs_parse_metadata, &result);
+
+	/* Check if all entries could be parsed */
+	if (meta_ltv.len != 0) {
+		BT_ERR("Unable to parse Metadata: len %u", meta_ltv.len);
+
+		if (meta_ltv.len > 2) {
+			/* Value of the Metadata Type field in error */
+			return meta_ltv.data[2];
+		}
+
+		return -EINVAL;
+	}
+
+	return result.err;
+}
+
+int ascs_ep_set_metadata(struct bt_audio_ep *ep,
+			 struct net_buf_simple *buf, uint8_t len,
+			 struct bt_codec *codec)
+{
+	struct net_buf_simple meta_ltv;
 	int err;
 
 	if (ep == NULL && codec == NULL) {
@@ -1354,6 +1663,7 @@ static int ascs_ep_set_metadata(struct bt_audio_ep *ep,
 	BT_DBG("ep %p len %u codec %p", ep, len, codec);
 
 	if (len == 0) {
+		(void)memset(codec->meta, 0, sizeof(codec->meta));
 		return 0;
 	}
 
@@ -1361,30 +1671,21 @@ static int ascs_ep_set_metadata(struct bt_audio_ep *ep,
 		codec = &ep->codec;
 	}
 
-	/* Reset current metadata */
-	codec->meta_count = 0;
-	(void)memset(codec->meta, 0, sizeof(codec->meta));
-
-	net_buf_simple_init_with_data(&meta, net_buf_simple_pull_mem(buf, len),
+	/* Extract metadata LTV for this specific endpoint */
+	net_buf_simple_init_with_data(&meta_ltv,
+				      net_buf_simple_pull_mem(buf, len),
 				      len);
 
-	/* Parse LTV entries */
-	bt_data_parse(&meta, ascs_codec_store_metadata, codec);
-
-	/* Check if all entries could be parsed */
-	if (meta.len != 0) {
-		BT_ERR("Unable to parse Metadata: len %u", meta.len);
-		err = -EINVAL;
-
-		if (meta.len > 2) {
-			/* Value of the Metadata Type field in error */
-			err = meta.data[2];
-		}
-
-		codec->meta_count = 0;
-		(void)memset(codec->meta, 0, sizeof(codec->meta));
+	err = ascs_verify_metadata(&meta_ltv, ep);
+	if (err != 0) {
 		return err;
 	}
+
+	/* reset cached metadata */
+	ep->codec.meta_count = 0;
+
+	/* store data contents */
+	bt_data_parse(&meta_ltv, ascs_codec_store_metadata, codec);
 
 	return 0;
 }
@@ -1393,6 +1694,7 @@ static int ase_metadata(struct bt_ascs_ase *ase, uint8_t op,
 			struct bt_ascs_metadata *meta,
 			struct net_buf_simple *buf)
 {
+	struct bt_codec_data metadata_backup[CONFIG_BT_CODEC_MAX_DATA_COUNT];
 	struct bt_audio_stream *stream;
 	struct bt_audio_ep *ep;
 	uint8_t state;
@@ -1421,7 +1723,8 @@ static int ase_metadata(struct bt_ascs_ase *ase, uint8_t op,
 		goto done;
 	}
 
-	/* TODO: We should ask the upper layer for accept before we store it */
+	/* Backup existing metadata */
+	(void)memcpy(metadata_backup, ep->codec.meta, sizeof(metadata_backup));
 	err = ascs_ep_set_metadata(ep, buf, meta->len, &ep->codec);
 	if (err) {
 		if (err < 0) {
@@ -1442,10 +1745,14 @@ static int ase_metadata(struct bt_ascs_ase *ase, uint8_t op,
 	}
 
 	if (err) {
+		/* Restore backup */
+		(void)memcpy(ep->codec.meta, metadata_backup,
+			     sizeof(metadata_backup));
+
 		BT_ERR("Metadata failed: %d", err);
 		ascs_cp_rsp_add_errno(ASE_ID(ase), op, err,
 				      buf->len ? *buf->data : 0x00);
-		return -EFAULT;
+		return err;
 	}
 
 	/* Set the state to the same state to trigger the notifications */
@@ -1507,7 +1814,7 @@ static int ase_enable(struct bt_ascs_ase *ase, struct bt_ascs_metadata *meta,
 	ascs_ep_set_state(ep, BT_AUDIO_EP_STATE_ENABLING);
 
 
-	if (ep->dir == BT_AUDIO_SINK) {
+	if (ep->dir == BT_AUDIO_DIR_SINK) {
 		/* SINK ASEs can autonomously go into the streaming state if
 		 * the CIS is connected
 		 */
@@ -1594,7 +1901,7 @@ static void ase_start(struct bt_ascs_ase *ase)
 	 * characteristic to the client, and the server shall set the
 	 * Response_Code value for that ASE to 0x05 (Invalid ASE direction).
 	 */
-	if (ep->dir == BT_AUDIO_SINK) {
+	if (ep->dir == BT_AUDIO_DIR_SINK) {
 		BT_ERR("Start failed: invalid operation for Sink");
 		ascs_cp_rsp_add(ASE_ID(ase), BT_ASCS_START_OP,
 				BT_ASCS_RSP_INVALID_DIR, BT_ASCS_REASON_NONE);
@@ -1718,7 +2025,7 @@ static void ase_stop(struct bt_ascs_ase *ase)
 	 * characteristic to the client, and the server shall set the
 	 * Response_Code value for that ASE to 0x05 (Invalid ASE direction).
 	 */
-	if (ase->ep.dir == BT_AUDIO_SINK) {
+	if (ase->ep.dir == BT_AUDIO_DIR_SINK) {
 		BT_ERR("Stop failed: invalid operation for Sink");
 		ascs_cp_rsp_add(ASE_ID(ase), BT_ASCS_STOP_OP,
 				BT_ASCS_RSP_INVALID_DIR, BT_ASCS_REASON_NONE);
@@ -1961,6 +2268,7 @@ static ssize_t ascs_cp_write(struct bt_conn *conn,
 		ascs_cp_rsp_add(0x00, req->op, BT_ASCS_RSP_NOT_SUPPORTED, 0);
 		BT_DBG("Unknown opcode");
 		len = BT_GATT_ERR(BT_ATT_ERR_NOT_SUPPORTED);
+		goto respond;
 	}
 
 	if (ret == BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN)) {

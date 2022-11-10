@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <sys/atomic.h>
-#include <sys/util.h>
-#include <sys/byteorder.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
 
-#include <net/buf.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_NET)
 #define LOG_MODULE_NAME bt_mesh_net
@@ -125,8 +125,8 @@ static bool check_dup(struct net_buf_simple *data)
 		}
 	}
 
-	dup_cache[dup_cache_next++] = val;
 	dup_cache_next %= ARRAY_SIZE(dup_cache);
+	dup_cache[dup_cache_next++] = val;
 
 	return false;
 }
@@ -147,10 +147,10 @@ static bool msg_cache_match(struct net_buf_simple *pdu)
 
 static void msg_cache_add(struct bt_mesh_net_rx *rx)
 {
-	rx->msg_cache_idx = msg_cache_next++;
-	msg_cache[rx->msg_cache_idx].src = rx->ctx.addr;
-	msg_cache[rx->msg_cache_idx].seq = rx->seq;
 	msg_cache_next %= ARRAY_SIZE(msg_cache);
+	msg_cache[msg_cache_next].src = rx->ctx.addr;
+	msg_cache[msg_cache_next].seq = rx->seq;
+	msg_cache_next++;
 }
 
 static void store_iv(bool only_duration)
@@ -242,8 +242,9 @@ bool bt_mesh_iv_update(void)
 }
 #endif /* CONFIG_BT_MESH_IV_UPDATE_TEST */
 
-static bool is_iv_recovery(uint32_t iv_index, bool iv_update)
+bool bt_mesh_net_iv_update(uint32_t iv_index, bool iv_update)
 {
+	/* Check if IV index should to be recovered. */
 	if (iv_index < bt_mesh.iv_index ||
 	    iv_index > bt_mesh.iv_index + 42) {
 		BT_ERR("IV Index out of sync: 0x%08x != 0x%08x",
@@ -278,46 +279,12 @@ static bool is_iv_recovery(uint32_t iv_index, bool iv_update)
 		bt_mesh.iv_index = iv_index;
 		bt_mesh.seq = 0U;
 
-		return true;
+		goto do_update;
 	}
 
-	return false;
-}
-
-bool bt_mesh_net_iv_update(uint32_t iv_index, bool iv_update)
-{
-	if (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS)) {
-		/* We're currently in IV Update mode */
-
-		if (iv_index != bt_mesh.iv_index) {
-			if (is_iv_recovery(iv_index, iv_update)) {
-				goto do_update;
-			}
-
-			return false;
-		}
-
-		if (iv_update) {
-			/* Nothing to do */
-			BT_DBG("Already in IV Update in Progress state");
-			return false;
-		}
-	} else {
-		/* We're currently in Normal mode */
-
-		if (iv_index != bt_mesh.iv_index + 1) {
-			if (is_iv_recovery(iv_index, iv_update)) {
-				goto do_update;
-			}
-
-			return false;
-		}
-
-		if (!iv_update) {
-			/* Nothing to do */
-			BT_DBG("Already in IV normal mode");
-			return false;
-		}
+	if (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS) == iv_update) {
+		BT_DBG("No change for IV Update procedure");
+		return false;
 	}
 
 	if (!(IS_ENABLED(CONFIG_BT_MESH_IV_UPDATE_TEST) &&
@@ -720,7 +687,7 @@ static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_RELAY_ADV,
 				 transmit, K_NO_WAIT);
 	if (!buf) {
-		BT_WARN("Out of relay buffers");
+		BT_DBG("Out of relay buffers");
 		return;
 	}
 
@@ -881,9 +848,9 @@ void bt_mesh_net_recv(struct net_buf_simple *data, int8_t rssi,
 	 */
 	if (bt_mesh_trans_recv(&buf, &rx) == -EAGAIN) {
 		BT_WARN("Removing rejected message from Network Message Cache");
-		msg_cache[rx.msg_cache_idx].src = BT_MESH_ADDR_UNASSIGNED;
 		/* Rewind the next index now that we're not using this entry */
-		msg_cache_next = rx.msg_cache_idx;
+		msg_cache[--msg_cache_next].src = BT_MESH_ADDR_UNASSIGNED;
+		dup_cache[--dup_cache_next] = 0;
 	}
 
 	/* Relay if this was a group/virtual address, or if the destination

@@ -5,21 +5,21 @@
  */
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
-#include <zephyr.h>
-#include <sys/printk.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/sys/printk.h>
 #include <string.h>
 #include <stdio.h>
-#include <ztest.h>
+#include <zephyr/ztest.h>
 
-#include <drivers/spi.h>
+#include <zephyr/drivers/spi.h>
 
-#define SPI_DRV_NAME	CONFIG_SPI_LOOPBACK_DRV_NAME
-#define SPI_SLAVE	CONFIG_SPI_LOOPBACK_SLAVE_NUMBER
-#define SLOW_FREQ	CONFIG_SPI_LOOPBACK_SLOW_FREQ
-#define FAST_FREQ	CONFIG_SPI_LOOPBACK_FAST_FREQ
+#define SPI_DRV_NAME		CONFIG_SPI_LOOPBACK_DRV_NAME
+#define SPI_SLAVE_NUMBER	CONFIG_SPI_LOOPBACK_SLAVE_NUMBER
+#define SLOW_FREQ		CONFIG_SPI_LOOPBACK_SLOW_FREQ
+#define FAST_FREQ		CONFIG_SPI_LOOPBACK_FAST_FREQ
 
 #if defined(CONFIG_SPI_LOOPBACK_CS_GPIO)
 #define CS_CTRL_GPIO_DRV_NAME CONFIG_SPI_LOOPBACK_CS_CTRL_GPIO_DRV_NAME
@@ -43,16 +43,12 @@ struct spi_cs_control spi_cs = {
 #define BUF2_SIZE 36
 
 #if CONFIG_NOCACHE_MEMORY
-static const char tx_data[] = "0123456789abcdef\0";
-static __aligned(32) char buffer_tx[BUF_SIZE] __used
-	__attribute__((__section__(".nocache")));
-static __aligned(32) char buffer_rx[BUF_SIZE] __used
-	__attribute__((__section__(".nocache")));
-static const char tx2_data[] = "Thequickbrownfoxjumpsoverthelazydog\0";
-static __aligned(32) char buffer2_tx[BUF2_SIZE] __used
-	__attribute__((__section__(".nocache")));
-static __aligned(32) char buffer2_rx[BUF2_SIZE] __used
-	__attribute__((__section__(".nocache")));
+static const char tx_data[BUF_SIZE] = "0123456789abcdef\0";
+static __aligned(32) char buffer_tx[BUF_SIZE] __used __attribute__((__section__(".nocache")));
+static __aligned(32) char buffer_rx[BUF_SIZE] __used __attribute__((__section__(".nocache")));
+static const char tx2_data[BUF2_SIZE] = "Thequickbrownfoxjumpsoverthelazydog\0";
+static __aligned(32) char buffer2_tx[BUF2_SIZE] __used __attribute__((__section__(".nocache")));
+static __aligned(32) char buffer2_rx[BUF2_SIZE] __used __attribute__((__section__(".nocache")));
 #else
 /* this src memory shall be in RAM to support using as a DMA source pointer.*/
 uint8_t buffer_tx[] = "0123456789abcdef\0";
@@ -89,7 +85,7 @@ struct spi_config spi_cfg_slow = {
 	.operation = SPI_OP_MODE_MASTER | SPI_MODE_CPOL |
 #endif
 	SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE,
-	.slave = SPI_SLAVE,
+	.slave = SPI_SLAVE_NUMBER,
 	.cs = SPI_CS,
 };
 
@@ -101,7 +97,7 @@ struct spi_config spi_cfg_fast = {
 	.operation = SPI_OP_MODE_MASTER | SPI_MODE_CPOL |
 #endif
 	SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE,
-	.slave = SPI_SLAVE,
+	.slave = SPI_SLAVE_NUMBER,
 	.cs = SPI_CS,
 };
 
@@ -128,6 +124,7 @@ static int spi_complete_multiple(const struct device *dev,
 		.buffers = tx_bufs,
 		.count = ARRAY_SIZE(tx_bufs)
 	};
+
 	tx_bufs[0].buf = buffer_tx;
 	tx_bufs[0].len = BUF_SIZE;
 
@@ -161,10 +158,8 @@ static int spi_complete_multiple(const struct device *dev,
 	if (memcmp(buffer_tx, buffer_rx, BUF_SIZE)) {
 		to_display_format(buffer_tx, BUF_SIZE, buffer_print_tx);
 		to_display_format(buffer_rx, BUF_SIZE, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	}
@@ -172,11 +167,9 @@ static int spi_complete_multiple(const struct device *dev,
 	if (memcmp(buffer2_tx, buffer2_rx, BUF2_SIZE)) {
 		to_display_format(buffer2_tx, BUF2_SIZE, buffer_print_tx2);
 		to_display_format(buffer2_rx, BUF2_SIZE, buffer_print_rx2);
-		LOG_ERR("Buffer 2 contents are different: %s",
-			    buffer_print_tx2);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx2);
-		zassert_false(1, "Buffer contents are different");
+		LOG_ERR("Buffer 2 contents are different: %s", buffer_print_tx2);
+		LOG_ERR("                             vs: %s", buffer_print_rx2);
+		zassert_false(1, "Buffer 2 contents are different");
 		return -1;
 	}
 
@@ -223,10 +216,8 @@ static int spi_complete_loop(const struct device *dev,
 	if (memcmp(buffer_tx, buffer_rx, BUF_SIZE)) {
 		to_display_format(buffer_tx, BUF_SIZE, buffer_print_tx);
 		to_display_format(buffer_rx, BUF_SIZE, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	}
@@ -240,14 +231,14 @@ static int spi_null_tx_buf(const struct device *dev,
 			   struct spi_config *spi_conf)
 {
 	static const uint8_t EXPECTED_NOP_RETURN_BUF[BUF_SIZE] = { 0 };
+
 	(void)memset(buffer_rx, 0x77, BUF_SIZE);
 
 	const struct spi_buf tx_bufs[] = {
+		/* According to documentation, when sending NULL tx buf -
+		 *  NOP frames should be sent on MOSI line
+		 */
 		{
-	       /*
-		* According to documentation, when sending NULL tx buf -
-		*  NOP frames should be sent on MOSI line
-		*/
 			.buf = NULL,
 			.len = BUF_SIZE,
 		},
@@ -331,10 +322,8 @@ static int spi_rx_half_start(const struct device *dev,
 	if (memcmp(buffer_tx, buffer_rx, 8)) {
 		to_display_format(buffer_tx, 8, buffer_print_tx);
 		to_display_format(buffer_rx, 8, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	}
@@ -389,13 +378,11 @@ static int spi_rx_half_end(const struct device *dev,
 		return -1;
 	}
 
-	if (memcmp(buffer_tx+8, buffer_rx, 8)) {
+	if (memcmp(buffer_tx + 8, buffer_rx, 8)) {
 		to_display_format(buffer_tx + 8, 8, buffer_print_tx);
 		to_display_format(buffer_rx, 8, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	}
@@ -466,19 +453,15 @@ static int spi_rx_every_4(const struct device *dev,
 	if (memcmp(buffer_tx + 4, buffer_rx, 4)) {
 		to_display_format(buffer_tx + 4, 4, buffer_print_tx);
 		to_display_format(buffer_rx, 4, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	} else if (memcmp(buffer_tx + 12, buffer_rx + 4, 4)) {
 		to_display_format(buffer_tx + 12, 4, buffer_print_tx);
 		to_display_format(buffer_rx + 4, 4, buffer_print_rx);
-		LOG_ERR("Buffer contents are different: %s",
-			    buffer_print_tx);
-		LOG_ERR("                           vs: %s",
-			    buffer_print_rx);
+		LOG_ERR("Buffer contents are different: %s", buffer_print_tx);
+		LOG_ERR("                           vs: %s", buffer_print_rx);
 		zassert_false(1, "Buffer contents are different");
 		return -1;
 	}
@@ -560,7 +543,7 @@ static int spi_async_call(const struct device *dev,
 
 	k_sem_take(&caller, K_FOREVER);
 
-	if (result)  {
+	if (result) {
 		LOG_ERR("Call code %d", ret);
 		zassert_false(result, "SPI transceive failed");
 		return -1;

@@ -57,11 +57,11 @@
 #define EEPROM_EMU_VERSION 0
 #define EEPROM_EMU_MAGIC 0x45454d55 /* EEMU in hex */
 
-#include <drivers/eeprom.h>
-#include <drivers/flash.h>
-#include <zephyr.h>
+#include <zephyr/drivers/eeprom.h>
+#include <zephyr/drivers/flash.h>
+#include <zephyr/zephyr.h>
 #define LOG_LEVEL CONFIG_EEPROM_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(eeprom_emulator);
 
 struct eeprom_emu_config {
@@ -741,9 +741,6 @@ static const struct eeprom_driver_api eeprom_emu_api = {
 
 #define PART_DEV(part) \
 	DEVICE_DT_GET(PART_DEV_ID(part))
-
-#define PART_DEV_NAME(part) \
-	DT_PROP(PART_DEV_ID(part), label)
 
 #define RECALC_SIZE(size, cbs) \
 	(size % cbs) ? ((size + cbs - 1) & ~(cbs - 1)) : size

@@ -5,19 +5,19 @@
  */
 
 #define LOG_LEVEL CONFIG_USB_DEVICE_NETWORK_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(usb_rndis);
 
 /* Enable verbose debug printing extra hexdumps */
 #define VERBOSE_DEBUG		0
 
-#include <init.h>
+#include <zephyr/init.h>
 
-#include <net/ethernet.h>
+#include <zephyr/net/ethernet.h>
 #include <net_private.h>
 
-#include <usb/usb_device.h>
-#include <usb/class/usb_cdc.h>
+#include <zephyr/usb/usb_device.h>
+#include <zephyr/usb/class/usb_cdc.h>
 #include <os_desc.h>
 
 #include "netusb.h"
@@ -380,9 +380,9 @@ static void rndis_bulk_out(uint8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 			return;
 		}
 
-		pkt = net_pkt_alloc_with_buffer(netusb_net_iface(),
-						rndis.in_pkt_len,
-						AF_UNSPEC, 0, K_NO_WAIT);
+		pkt = net_pkt_rx_alloc_with_buffer(netusb_net_iface(),
+						   rndis.in_pkt_len, AF_UNSPEC,
+						   0, K_NO_WAIT);
 		if (!pkt) {
 			/* In case of low memory: skip the whole packet
 			 * hoping to get buffers for later ones

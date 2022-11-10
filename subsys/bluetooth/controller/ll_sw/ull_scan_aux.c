@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/byteorder.h>
-#include <sys/util.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/util.h>
 
 #include "util/mem.h"
 #include "util/memq.h"
@@ -36,6 +36,7 @@
 #include "ull_scan_internal.h"
 #include "ull_sync_internal.h"
 #include "ull_sync_iso_internal.h"
+#include "ull_df_internal.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME bt_ctlr_ull_scan_aux
@@ -524,7 +525,6 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		aux->rx_incomplete = rx_incomplete;
 		rx_incomplete = NULL;
 #endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
-
 	} else {
 		aux->data_len += data_len;
 	}
@@ -654,7 +654,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 	aux->ull.ticks_slot =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US +
 				       ready_delay_us +
-				       PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_SIZE_MAX,
+				       PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE,
 						     lll_aux->phy) +
 				       EVENT_OVERHEAD_END_US);
 
@@ -844,6 +844,19 @@ struct ll_scan_aux_set *ull_scan_aux_is_valid_get(struct ll_scan_aux_set *aux)
 	}
 
 	return aux;
+}
+
+struct lll_scan_aux *ull_scan_aux_lll_is_valid_get(struct lll_scan_aux *lll)
+{
+	struct ll_scan_aux_set *aux;
+
+	aux = HDR_LLL2ULL(lll);
+	aux = ull_scan_aux_is_valid_get(aux);
+	if (aux) {
+		return &aux->lll;
+	}
+
+	return NULL;
 }
 
 void ull_scan_aux_release(memq_link_t *link, struct node_rx_hdr *rx)

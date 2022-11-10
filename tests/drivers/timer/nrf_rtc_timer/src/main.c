@@ -3,11 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <ztest.h>
-#include <drivers/timer/nrf_rtc_timer.h>
+#include <zephyr/ztest.h>
+#include <zephyr/drivers/timer/nrf_rtc_timer.h>
 #include <hal/nrf_rtc.h>
 #include <hal/nrf_timer.h>
-#include <irq.h>
+#include <zephyr/irq.h>
 
 struct test_data {
 	uint64_t target_time;
@@ -31,7 +31,7 @@ static void init_zli_timer0(void)
 {
 	nrf_timer_mode_set(NRF_TIMER0, NRF_TIMER_MODE_TIMER);
 	nrf_timer_bit_width_set(NRF_TIMER0, NRF_TIMER_BIT_WIDTH_32);
-	nrf_timer_frequency_set(NRF_TIMER0, NRF_TIMER_FREQ_1MHz);
+	nrf_timer_prescaler_set(NRF_TIMER0, NRF_TIMER_FREQ_1MHz);
 	nrf_timer_cc_set(NRF_TIMER0, 0, 100);
 	nrf_timer_int_enable(NRF_TIMER0, NRF_TIMER_INT_COMPARE0_MASK);
 	nrf_timer_shorts_enable(NRF_TIMER0,

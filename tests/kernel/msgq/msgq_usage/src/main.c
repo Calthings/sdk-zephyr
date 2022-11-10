@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <irq_offload.h>
-#include <ztest.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/irq_offload.h>
+#include <zephyr/ztest.h>
 #include <limits.h>
 
 #define MSGQ_LEN (2)

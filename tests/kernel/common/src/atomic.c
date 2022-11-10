@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <sys/atomic.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/atomic.h>
 
 /* convenience macro - return either 64-bit or 32-bit value */
 #define ATOMIC_WORD(val_if_64, val_if_32)                                                          \
@@ -94,7 +94,7 @@ atomic_t total_atomic;
  *
  * @ingroup kernel_common_tests
  */
-void test_atomic(void)
+ZTEST_USER(atomic, test_atomic)
 {
 	int i;
 
@@ -314,7 +314,7 @@ void atomic_handler(void *p1, void *p2, void *p3)
  *
  * @ingroup kernel_common_tests
  */
-void test_threads_access_atomic(void)
+ZTEST(atomic, test_threads_access_atomic)
 {
 	k_tid_t tid[THREADS_NUM];
 

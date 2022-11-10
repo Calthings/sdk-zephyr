@@ -8,14 +8,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <drivers/gpio.h>
-#include <init.h>
-#include <drivers/spi.h>
-#include <sys/byteorder.h>
-#include <sys/util.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/init.h>
+#include <zephyr/drivers/spi.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/util.h>
 
-#include <bluetooth/hci.h>
-#include <drivers/bluetooth/hci_driver.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/drivers/bluetooth/hci_driver.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME bt_driver
@@ -72,7 +72,7 @@ static K_KERNEL_STACK_DEFINE(spi_rx_stack, 512);
 static struct k_thread spi_rx_thread_data;
 
 #if defined(CONFIG_BT_DEBUG_HCI_DRIVER)
-#include <sys/printk.h>
+#include <zephyr/sys/printk.h>
 static inline void spi_dump_message(const uint8_t *pre, uint8_t *buf,
 				    uint8_t size)
 {
@@ -429,9 +429,6 @@ static int bt_spi_send(struct net_buf *buf)
 	} while ((rxmsg[STATUS_HEADER_READY] != READY_NOW ||
 		  (rxmsg[1] | rxmsg[2] | rxmsg[3] | rxmsg[4]) == 0U) && !ret);
 
-
-	k_sem_give(&sem_busy);
-
 	if (!ret) {
 		/* Transmit the message */
 		do {
@@ -441,6 +438,8 @@ static int bt_spi_send(struct net_buf *buf)
 	}
 
 	release_cs();
+
+	k_sem_give(&sem_busy);
 
 	if (ret) {
 		BT_ERR("Error %d", ret);
@@ -500,7 +499,7 @@ static int bt_spi_open(void)
 }
 
 static const struct bt_hci_driver drv = {
-	.name		= DT_INST_LABEL(0),
+	.name		= DEVICE_DT_NAME(DT_DRV_INST(0)),
 	.bus		= BT_HCI_DRIVER_BUS_SPI,
 #if defined(CONFIG_BT_BLUENRG_ACI)
 	.quirks		= BT_QUIRK_NO_RESET,

@@ -7,19 +7,19 @@
  *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 
-#include <sys/printk.h>
+#include <zephyr/sys/printk.h>
 #define  MBEDTLS_PRINT (int(*)(const char *, ...)) printk
 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <zephyr.h>
-#include <linker/sections.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/linker/sections.h>
 #include <errno.h>
 
-#include <tc_util.h>
-#include <ztest.h>
+#include <zephyr/tc_util.h>
+#include <zephyr/ztest.h>
 
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 

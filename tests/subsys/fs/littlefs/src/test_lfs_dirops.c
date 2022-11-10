@@ -13,12 +13,12 @@
  */
 
 #include <string.h>
-#include <ztest.h>
+#include <zephyr/ztest.h>
 #include "testfs_tests.h"
 #include "testfs_lfs.h"
 #include <lfs.h>
 
-#include <fs/littlefs.h>
+#include <zephyr/fs/littlefs.h>
 
 static struct testfs_bcmd test_hierarchy[] = {
 	TESTFS_BCMD_FILE("f1", 1, 1),

@@ -32,6 +32,8 @@ add_dependencies(testbinary ${KOBJ_TYPES_H_TARGET})
 gen_kobj(KOBJ_GEN_DIR)
 
 list(APPEND INCLUDE
+  subsys/testsuite/ztest/include/zephyr
+  subsys/testsuite/include/zephyr
   subsys/testsuite/ztest/include
   subsys/testsuite/include
   include/zephyr
@@ -62,7 +64,7 @@ target_compile_options(testbinary PRIVATE
   )
 
 target_link_options(testbinary PRIVATE
-  -T "${ZEPHYR_BASE}/subsys/testsuite/include/ztest.ld"
+  -T "${ZEPHYR_BASE}/subsys/testsuite/include/zephyr/ztest_unittest.ld"
   )
 
 target_link_libraries(testbinary PRIVATE
@@ -86,10 +88,20 @@ if(LIBS)
   message(FATAL_ERROR "This variable is not supported, see SOURCES instead")
 endif()
 
-target_sources(testbinary PRIVATE
-  ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest.c
-  ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_mock.c
-  )
+if(CONFIG_ZTEST_NEW_API)
+  add_definitions( -DCONFIG_ZTEST_NEW_API=y )
+  target_sources(testbinary PRIVATE
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_new.c
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_mock.c
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_rules.c
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_defaults.c
+      )
+else()
+  target_sources(testbinary PRIVATE
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest.c
+      ${ZEPHYR_BASE}/subsys/testsuite/ztest/src/ztest_mock.c
+      )
+endif()
 
 target_compile_definitions(testbinary PRIVATE ZTEST_UNITTEST)
 

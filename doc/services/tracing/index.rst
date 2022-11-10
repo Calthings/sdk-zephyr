@@ -21,7 +21,7 @@ that has implied:
 6. Writing custom ad-hoc tools for filtering and presentation.
 
 An application can use one of the existing formats or define a custom format by
-overriding the macros declared in :zephyr_file:`include/tracing/tracing.h`.
+overriding the macros declared in :zephyr_file:`include/zephyr/tracing/tracing.h`.
 
 Different formats, transports and host tools are available and supported in
 Zephyr.
@@ -154,8 +154,17 @@ Examples include:
 not be supported by the other tracing systems
 
 The following functions can be defined by the user:
+- ``void sys_trace_thread_create_user(struct k_thread *thread)``
+- ``void sys_trace_thread_abort_user(struct k_thread *thread)``
+- ``void sys_trace_thread_suspend_user(struct k_thread *thread)``
+- ``void sys_trace_thread_resume_user(struct k_thread *thread)``
+- ``void sys_trace_thread_name_set_user(struct k_thread *thread)``
 - ``void sys_trace_thread_switched_in_user(struct k_thread *thread)``
 - ``void sys_trace_thread_switched_out_user(struct k_thread *thread)``
+- ``void sys_trace_thread_info_user(struct k_thread *thread)``
+- ``void sys_trace_thread_sched_ready_user(struct k_thread *thread)``
+- ``void sys_trace_thread_pend_user(struct k_thread *thread)``
+- ``void sys_trace_thread_priority_set_user(struct k_thread *thread, int prio)``
 - ``void sys_trace_isr_enter_user(int nested_interrupts)``
 - ``void sys_trace_isr_exit_user(int nested_interrupts)``
 - ``void sys_trace_idle_user()``

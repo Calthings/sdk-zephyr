@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <sys/mem_manage.h>
-#include <timing/timing.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/mem_manage.h>
+#include <zephyr/timing/timing.h>
 #include <mmu.h>
-#include <linker/sections.h>
+#include <zephyr/linker/sections.h>
 
 #ifdef CONFIG_BACKING_STORE_RAM_PAGES
 #define EXTRA_PAGES	(CONFIG_BACKING_STORE_RAM_PAGES - 1)
@@ -249,7 +249,7 @@ void test_k_mem_page_in(void)
 void test_k_mem_pin(void)
 {
 	unsigned long faults;
-	int key;
+	unsigned int key;
 
 	k_mem_pin(arena, HALF_BYTES);
 
@@ -293,7 +293,7 @@ void test_k_mem_unpin(void)
 void test_backing_store_capacity(void)
 {
 	char *mem, *ret;
-	int key;
+	unsigned int key;
 	unsigned long faults;
 	size_t size = (((CONFIG_BACKING_STORE_RAM_PAGES - 1) - HALF_PAGES) *
 		       CONFIG_MMU_PAGE_SIZE);

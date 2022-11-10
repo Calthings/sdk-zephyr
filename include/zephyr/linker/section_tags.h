@@ -9,7 +9,7 @@
 #ifndef ZEPHYR_INCLUDE_LINKER_SECTION_TAGS_H_
 #define ZEPHYR_INCLUDE_LINKER_SECTION_TAGS_H_
 
-#include <toolchain.h>
+#include <zephyr/toolchain.h>
 
 #if !defined(_ASMLANGUAGE)
 
@@ -17,6 +17,10 @@
 #define __noinit_named(name)	__in_section_unique_named(_NOINIT_SECTION_NAME, name)
 #define __irq_vector_table	Z_GENERIC_SECTION(_IRQ_VECTOR_TABLE_SECTION_NAME)
 #define __sw_isr_table		Z_GENERIC_SECTION(_SW_ISR_TABLE_SECTION_NAME)
+
+/* Attribute macros to place code and data into IMR memory */
+#define __imr __in_section_unique(imr)
+#define __imrdata __in_section_unique(imrdata)
 
 #if defined(CONFIG_ARM)
 #define __kinetis_flash_config_section __in_section_unique(_KINETIS_FLASH_CONFIG_SECTION_NAME)

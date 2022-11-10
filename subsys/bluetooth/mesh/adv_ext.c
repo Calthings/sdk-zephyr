@@ -6,12 +6,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <debug/stack.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/debug/stack.h>
 
-#include <net/buf.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_ADV)
 #define LOG_MODULE_NAME bt_mesh_adv_ext
@@ -321,6 +321,9 @@ void bt_mesh_adv_buf_relay_ready(void)
 			return;
 		}
 	}
+
+	/* Attempt to use the main adv set for the sending of relay messages. */
+	(void)schedule_send(&adv_main);
 }
 
 void bt_mesh_adv_init(void)
@@ -417,7 +420,7 @@ int bt_mesh_adv_gatt_start(const struct bt_le_adv_param *param,
 	struct bt_mesh_ext_adv *adv = gatt_adv_get();
 	struct bt_le_ext_adv_start_param start = {
 		/* Timeout is set in 10 ms steps, with 0 indicating "forever" */
-		.timeout = (duration == SYS_FOREVER_MS) ? 0 : (duration / 10),
+		.timeout = (duration == SYS_FOREVER_MS) ? 0 : MAX(1, duration / 10),
 	};
 
 	BT_DBG("Start advertising %d ms", duration);

@@ -3,11 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <ztest.h>
-#include <ztress.h>
-#include <sys/ring_buffer.h>
-#include <sys/mutex.h>
-#include <random/rand32.h>
+#include <zephyr/ztest.h>
+#include <zephyr/ztress.h>
+#include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/mutex.h>
+#include <zephyr/random/rand32.h>
 #include <stdint.h>
 
 /**

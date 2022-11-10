@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <crypto/crypto.h>
+#include <zephyr/ztest.h>
+#include <zephyr/crypto/crypto.h>
 
 #define CRYPTO_DRV_NAME CONFIG_CRYPTO_MBEDTLS_SHIM_DRV_NAME
 

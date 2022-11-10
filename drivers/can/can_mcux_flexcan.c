@@ -6,18 +6,18 @@
 
 #define DT_DRV_COMPAT nxp_kinetis_flexcan
 
-#include <zephyr.h>
-#include <sys/atomic.h>
-#include <drivers/can.h>
-#include <drivers/can/transceiver.h>
-#include <drivers/clock_control.h>
-#include <device.h>
-#include <sys/byteorder.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/drivers/can.h>
+#include <zephyr/drivers/can/transceiver.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/device.h>
+#include <zephyr/sys/byteorder.h>
 #include <fsl_flexcan.h>
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 #ifdef CONFIG_PINCTRL
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 #endif
 
 LOG_MODULE_REGISTER(can_mcux_flexcan, CONFIG_CAN_LOG_LEVEL);
@@ -152,10 +152,8 @@ static int mcux_flexcan_get_max_bitrate(const struct device *dev, uint32_t *max_
 }
 
 static int mcux_flexcan_set_timing(const struct device *dev,
-				   const struct can_timing *timing,
-				   const struct can_timing *timing_data)
+				   const struct can_timing *timing)
 {
-	ARG_UNUSED(timing_data);
 	struct mcux_flexcan_data *data = dev->data;
 	const struct mcux_flexcan_config *config = dev->config;
 	uint8_t sjw_backup = data->timing.sjw;
@@ -181,12 +179,26 @@ static int mcux_flexcan_set_timing(const struct device *dev,
 	return 0;
 }
 
-static int mcux_flexcan_set_mode(const struct device *dev, enum can_mode mode)
+static int mcux_flexcan_get_capabilities(const struct device *dev, can_mode_t *cap)
+{
+	ARG_UNUSED(dev);
+
+	*cap = CAN_MODE_NORMAL | CAN_MODE_LOOPBACK | CAN_MODE_LISTENONLY | CAN_MODE_3_SAMPLES;
+
+	return 0;
+}
+
+static int mcux_flexcan_set_mode(const struct device *dev, can_mode_t mode)
 {
 	const struct mcux_flexcan_config *config = dev->config;
 	uint32_t ctrl1;
 	uint32_t mcr;
 	int err;
+
+	if ((mode & ~(CAN_MODE_LOOPBACK | CAN_MODE_LISTENONLY | CAN_MODE_3_SAMPLES)) != 0) {
+		LOG_ERR("unsupported mode: 0x%08x", mode);
+		return -ENOTSUP;
+	}
 
 	if (config->phy != NULL) {
 		err = can_transceiver_enable(config->phy);
@@ -201,7 +213,7 @@ static int mcux_flexcan_set_mode(const struct device *dev, enum can_mode mode)
 	ctrl1 = config->base->CTRL1;
 	mcr = config->base->MCR;
 
-	if (mode == CAN_LOOPBACK_MODE || mode == CAN_SILENT_LOOPBACK_MODE) {
+	if ((mode & CAN_MODE_LOOPBACK) != 0) {
 		/* Enable loopback and self-reception */
 		ctrl1 |= CAN_CTRL1_LPB_MASK;
 		mcr &= ~(CAN_MCR_SRXDIS_MASK);
@@ -211,12 +223,20 @@ static int mcux_flexcan_set_mode(const struct device *dev, enum can_mode mode)
 		mcr |= CAN_MCR_SRXDIS_MASK;
 	}
 
-	if (mode == CAN_SILENT_MODE || mode == CAN_SILENT_LOOPBACK_MODE) {
+	if ((mode & CAN_MODE_LISTENONLY) != 0) {
 		/* Enable listen-only mode */
 		ctrl1 |= CAN_CTRL1_LOM_MASK;
 	} else {
 		/* Disable listen-only mode */
 		ctrl1 &= ~(CAN_CTRL1_LOM_MASK);
+	}
+
+	if ((mode & CAN_MODE_3_SAMPLES) != 0) {
+		/* Enable triple sampling mode */
+		ctrl1 |= CAN_CTRL1_SMP_MASK;
+	} else {
+		/* Disable triple sampling mode */
+		ctrl1 &= ~(CAN_CTRL1_SMP_MASK);
 	}
 
 	config->base->CTRL1 = ctrl1;
@@ -281,13 +301,11 @@ static void mcux_flexcan_copy_zfilter_to_mbconfig(const struct zcan_filter *src,
 	if (src->id_type == CAN_STANDARD_IDENTIFIER) {
 		dest->format = kFLEXCAN_FrameFormatStandard;
 		dest->id = FLEXCAN_ID_STD(src->id);
-		*mask = FLEXCAN_RX_MB_STD_MASK(src->id_mask,
-					       src->rtr & src->rtr_mask, 1);
+		*mask = FLEXCAN_RX_MB_STD_MASK(src->id_mask, src->rtr_mask, 1);
 	} else {
 		dest->format = kFLEXCAN_FrameFormatExtend;
 		dest->id = FLEXCAN_ID_EXT(src->id);
-		*mask = FLEXCAN_RX_MB_EXT_MASK(src->id_mask,
-					       src->rtr & src->rtr_mask, 1);
+		*mask = FLEXCAN_RX_MB_EXT_MASK(src->id_mask, src->rtr_mask, 1);
 	}
 
 	if ((src->rtr & src->rtr_mask) == CAN_DATAFRAME) {
@@ -641,6 +659,7 @@ static inline void mcux_flexcan_transfer_rx_idle(const struct device *dev,
 static FLEXCAN_CALLBACK(mcux_flexcan_transfer_callback)
 {
 	struct mcux_flexcan_data *data = (struct mcux_flexcan_data *)userData;
+	const struct mcux_flexcan_config *config = data->dev->config;
 	/*
 	 * The result field can either be a MB index (which is limited to 32 bit
 	 * value) or a status flags value, which is 32 bit on some platforms but
@@ -660,6 +679,7 @@ static FLEXCAN_CALLBACK(mcux_flexcan_transfer_callback)
 		mcux_flexcan_transfer_error_status(data->dev, status_flags);
 		break;
 	case kStatus_FLEXCAN_TxSwitchToRx:
+		FLEXCAN_TransferAbortReceive(config->base, &data->handle, mb);
 		__fallthrough;
 	case kStatus_FLEXCAN_TxIdle:
 		mcux_flexcan_transfer_tx_idle(data->dev, mb);
@@ -780,6 +800,7 @@ static int mcux_flexcan_init(const struct device *dev)
 }
 
 static const struct can_driver_api mcux_flexcan_driver_api = {
+	.get_capabilities = mcux_flexcan_get_capabilities,
 	.set_mode = mcux_flexcan_set_mode,
 	.set_timing = mcux_flexcan_set_timing,
 	.send = mcux_flexcan_send,
@@ -825,7 +846,7 @@ static const struct can_driver_api mcux_flexcan_driver_api = {
 		mcux_flexcan_isr,					\
 		DEVICE_DT_INST_GET(id), 0);				\
 		irq_enable(DT_INST_IRQ_BY_NAME(id, name, irq));		\
-	} while (0)
+	} while (false)
 
 #define FLEXCAN_IRQ(id, name) \
 	COND_CODE_1(DT_INST_IRQ_HAS_NAME(id, name), \

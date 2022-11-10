@@ -10,7 +10,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_pkt, CONFIG_NET_PKT_LOG_LEVEL);
 
 /* This enables allocation debugging but does not print so much output
@@ -23,20 +23,20 @@ LOG_MODULE_REGISTER(net_pkt, CONFIG_NET_PKT_LOG_LEVEL);
 #define NET_LOG_LEVEL CONFIG_NET_PKT_LOG_LEVEL
 #endif
 
-#include <kernel.h>
-#include <toolchain.h>
+#include <zephyr/kernel.h>
+#include <zephyr/toolchain.h>
 #include <string.h>
 #include <zephyr/types.h>
 #include <sys/types.h>
 
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 
-#include <net/net_core.h>
-#include <net/net_ip.h>
-#include <net/buf.h>
-#include <net/net_pkt.h>
-#include <net/ethernet.h>
-#include <net/udp.h>
+#include <zephyr/net/net_core.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/net/net_pkt.h>
+#include <zephyr/net/ethernet.h>
+#include <zephyr/net/udp.h>
 
 #include "net_private.h"
 #include "tcp_internal.h"
@@ -1774,6 +1774,8 @@ static void clone_pkt_attributes(struct net_pkt *pkt, struct net_pkt *clone_pkt)
 	net_pkt_set_orig_iface(clone_pkt, net_pkt_orig_iface(pkt));
 	net_pkt_set_captured(clone_pkt, net_pkt_is_captured(pkt));
 	net_pkt_set_l2_bridged(clone_pkt, net_pkt_is_l2_bridged(pkt));
+	net_pkt_set_l2_processed(clone_pkt, net_pkt_is_l2_processed(pkt));
+	net_pkt_set_ll_proto_type(clone_pkt, net_pkt_ll_proto_type(pkt));
 
 	if (IS_ENABLED(CONFIG_NET_IPV4) && net_pkt_family(pkt) == AF_INET) {
 		net_pkt_set_ipv4_ttl(clone_pkt, net_pkt_ipv4_ttl(pkt));
@@ -1891,10 +1893,7 @@ struct net_pkt *net_pkt_shallow_clone(struct net_pkt *pkt, k_timeout_t timeout)
 	clone_pkt->buffer = pkt->buffer;
 	buf = pkt->buffer;
 
-	while (buf) {
-		net_pkt_frag_ref(buf);
-		buf = buf->frags;
-	}
+	net_pkt_frag_ref(buf);
 
 	if (pkt->buffer) {
 		/* The link header pointers are only usable if there is

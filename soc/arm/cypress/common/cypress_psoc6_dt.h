@@ -12,7 +12,7 @@
 #ifndef _CYPRESS_PSOC6_DT_H_
 #define _CYPRESS_PSOC6_DT_H_
 
-#include <devicetree.h>
+#include <zephyr/devicetree.h>
 
 /*
  * Devicetree macros related to interrupt
@@ -100,7 +100,7 @@
 			    isr, DEVICE_DT_INST_GET(n), 0);\
 		CY_PSOC6_NVIC_MUX_MAP(n);		\
 		irq_enable(CY_PSOC6_NVIC_MUX_IRQN(n));	\
-	} while (0)
+	} while (false)
 
 /*
  * Devicetree related macros to construct pin control config data

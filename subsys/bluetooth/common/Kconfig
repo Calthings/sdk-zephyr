@@ -136,11 +136,13 @@ config BT_BUF_EVT_RX_COUNT
 
 config BT_BUF_EVT_DISCARDABLE_SIZE
 	int "Maximum supported discardable HCI Event buffer length"
-	range 43 255
+	range 43 255 if !BT_EXT_ADV
+	range 58 255 if BT_EXT_ADV
 	# LE Extended Advertising Report event
 	default 255 if BT_BREDR
 	# Le Advertising Report event
-	default 43
+	default 43 if !BT_EXT_ADV
+	default 58 if BT_EXT_ADV
 	help
 	  Maximum support discardable HCI event size of buffers in the separate
 	  discardable event buffer pool. This value does not include the
@@ -213,6 +215,20 @@ config BT_HCI_VS_EXT
 	  Enable support for the Zephyr HCI Vendor-Specific Extensions in the
 	  Host and/or Controller. This enables  Write BD_ADDR, Read Build Info,
 	  Read Static Addresses and Read Key Hierarchy Roots vendor commands.
+
+config BT_HCI_VS_EVT
+	bool "Zephyr HCI Vendor-Specific Events"
+	depends on BT_HCI_VS_EXT
+	help
+	  Enable support for the Zephyr HCI Vendor-Specific Events in the
+	  Host and/or Controller.
+
+config BT_HCI_VS_FATAL_ERROR
+	bool "Allow vendor specific HCI event Zephyr Fatal Error"
+	depends on BT_HCI_VS_EXT
+	help
+	  Enable emiting HCI Vendor-Specific events for system and Controller
+	  errors that are unrecoverable.
 
 config BT_HCI_VS_EXT_DETECT
 	bool "Use heuristics to guess HCI vendor extensions support in advance"
@@ -313,6 +329,8 @@ config BT_DEBUG_MONITOR_RTT
 	depends on USE_SEGGER_RTT
 	depends on SEGGER_RTT_MAX_NUM_UP_BUFFERS >= 2
 	select BT_DEBUG
+	select LOG
+	select CONSOLE_HAS_DRIVER
 	select BT_MONITOR
 	help
 	  Use a custom logging protocol over the RTT buffer instead of

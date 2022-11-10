@@ -11,7 +11,7 @@
 #ifndef ZEPHYR_INCLUDE_NET_DHCPV4_H_
 #define ZEPHYR_INCLUDE_NET_DHCPV4_H_
 
-#include <sys/slist.h>
+#include <zephyr/sys/slist.h>
 #include <zephyr/types.h>
 
 #ifdef __cplusplus
@@ -65,6 +65,17 @@ void net_dhcpv4_start(struct net_if *iface);
  *  @param iface A valid pointer on an interface
  */
 void net_dhcpv4_stop(struct net_if *iface);
+
+/**
+ *  @brief Restart DHCPv4 client on an iface
+ *
+ *  @details Restart DHCPv4 client on a given interface. DHCPv4 client
+ *  will restart the state machine without any of the initial delays
+ *  used in start.
+ *
+ *  @param iface A valid pointer on an interface
+ */
+void net_dhcpv4_restart(struct net_if *iface);
 
 /** @cond INTERNAL_HIDDEN */
 

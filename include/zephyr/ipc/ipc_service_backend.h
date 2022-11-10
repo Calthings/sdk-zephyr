@@ -7,7 +7,7 @@
 #ifndef ZEPHYR_INCLUDE_IPC_SERVICE_IPC_SERVICE_BACKEND_H_
 #define ZEPHYR_INCLUDE_IPC_SERVICE_IPC_SERVICE_BACKEND_H_
 
-#include <ipc/ipc_service.h>
+#include <zephyr/ipc/ipc_service.h>
 #include <stdio.h>
 
 #ifdef __cplusplus
@@ -45,8 +45,10 @@ struct ipc_service_backend {
 	 *  @param[in] len Number of bytes to send.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -EBADMSG when the message is invalid.
 	 *  @retval -EBUSY when the instance is busy or not ready.
+	 *  @retval -ENOMEM when no memory / buffers are available.
 	 *
 	 *  @retval bytes number of bytes sent.
 	 *  @retval other errno codes depending on the implementation of the
@@ -78,6 +80,7 @@ struct ipc_service_backend {
 	 *  @param[in] token Backend-specific token.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -ENOTSUP when the operation is not supported.
 	 *
 	 *  @retval size TX buffer size on success.
@@ -95,6 +98,7 @@ struct ipc_service_backend {
 	 *  @param[in] wait Timeout waiting for an available TX buffer.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -ENOTSUP when the operation or the timeout is not supported.
 	 *  @retval -ENOBUFS when there are no TX buffers available.
 	 *  @retval -EALREADY when a buffer was already claimed and not yet released.
@@ -115,6 +119,7 @@ struct ipc_service_backend {
 	 *  @param[in] data Pointer to the TX buffer.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -ENOTSUP when this function is not supported.
 	 *  @retval -EALREADY when the buffer was already dropped.
 	 *
@@ -135,6 +140,7 @@ struct ipc_service_backend {
 	 *  @param[in] len Number of bytes to send.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -EBADMSG when the data is invalid (i.e. invalid data format,
 	 *		     invalid length, ...)
 	 *  @retval -EBUSY when the instance is busy or not ready.
@@ -153,6 +159,7 @@ struct ipc_service_backend {
 	 *  @param[in] data Pointer to the RX buffer to hold.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -EALREADY when the buffer data has been already hold.
 	 *  @retval -ENOTSUP when this function is not supported.
 	 *
@@ -170,6 +177,7 @@ struct ipc_service_backend {
 	 *  @param[in] data Pointer to the RX buffer to release.
 	 *
 	 *  @retval -EINVAL when instance is invalid.
+	 *  @retval -ENOENT when the endpoint is not registered with the instance.
 	 *  @retval -EALREADY when the buffer data has been already released.
 	 *  @retval -ENOTSUP when this function is not supported.
 	 *

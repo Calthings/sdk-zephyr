@@ -5,10 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <device.h>
-#include <drivers/sensor.h>
-#include <drivers/adc.h>
-#include <logging/log.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/sensor.h>
+#include <zephyr/drivers/adc.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(stm32_temp, CONFIG_SENSOR_LOG_LEVEL);
 
@@ -24,8 +25,7 @@ LOG_MODULE_REGISTER(stm32_temp, CONFIG_SENSOR_LOG_LEVEL);
 
 struct stm32_temp_data {
 	const struct device *adc;
-	uint8_t channel;
-	struct adc_channel_cfg adc_cfg;
+	const struct adc_channel_cfg adc_cfg;
 	struct adc_sequence adc_seq;
 	struct k_mutex mutex;
 	int16_t sample_buffer;
@@ -33,14 +33,12 @@ struct stm32_temp_data {
 };
 
 struct stm32_temp_config {
-	int tsv_mv;
 #if HAS_CALIBRATION
 	uint16_t *cal1_addr;
 	uint16_t *cal2_addr;
 	int cal1_temp;
 	int cal2_temp;
 	int cal_vrefanalog;
-	int cal_offset;
 #else
 	int avgslope;
 	int v25_mv;
@@ -60,15 +58,21 @@ static int stm32_temp_sample_fetch(const struct device *dev, enum sensor_channel
 
 	k_mutex_lock(&data->mutex, K_FOREVER);
 
+	rc = adc_channel_setup(data->adc, &data->adc_cfg);
+	if (rc) {
+		LOG_DBG("Setup AIN%u got %d", data->adc_cfg.channel_id, rc);
+		goto unlock;
+	}
+
 	rc = adc_read(data->adc, sp);
-	sp->calibrate = false;
 	if (rc == 0) {
 		data->raw = data->sample_buffer;
 	}
 
+unlock:
 	k_mutex_unlock(&data->mutex);
 
-	return 0;
+	return rc;
 }
 
 static int stm32_temp_channel_get(const struct device *dev, enum sensor_channel chan,
@@ -83,13 +87,14 @@ static int stm32_temp_channel_get(const struct device *dev, enum sensor_channel 
 	}
 
 #if HAS_CALIBRATION
-	temp = ((float)data->raw * cfg->tsv_mv) / cfg->cal_vrefanalog;
+	temp = ((float)data->raw * adc_ref_internal(data->adc)) / cfg->cal_vrefanalog;
 	temp -= *cfg->cal1_addr;
 	temp *= (cfg->cal2_temp - cfg->cal1_temp);
 	temp /= (*cfg->cal2_addr - *cfg->cal1_addr);
-	temp += cfg->cal_offset;
+	temp += cfg->cal1_temp;
 #else
-	int32_t mv = data->raw * cfg->tsv_mv / 0x0FFF; /* Sensor value in millivolts */
+	/* Sensor value in millivolts */
+	int32_t mv = data->raw * adc_ref_internal(data->adc) / 0x0FFF;
 
 	if (cfg->is_ntc) {
 		temp = (float)(cfg->v25_mv - mv);
@@ -111,9 +116,7 @@ static const struct sensor_driver_api stm32_temp_driver_api = {
 static int stm32_temp_init(const struct device *dev)
 {
 	struct stm32_temp_data *data = dev->data;
-	struct adc_channel_cfg *accp = &data->adc_cfg;
 	struct adc_sequence *asp = &data->adc_seq;
-	int rc;
 
 	k_mutex_init(&data->mutex);
 
@@ -122,45 +125,43 @@ static int stm32_temp_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	*accp = (struct adc_channel_cfg){ .gain = ADC_GAIN_1,
-					  .reference = ADC_REF_INTERNAL,
-					  .acquisition_time = ADC_ACQ_TIME_MAX,
-					  .channel_id = data->channel,
-					  .differential = 0 };
-	rc = adc_channel_setup(data->adc, accp);
-	LOG_DBG("Setup AIN%u got %d", data->channel, rc);
-
 	*asp = (struct adc_sequence){
-		.channels = BIT(data->channel),
+		.channels = BIT(data->adc_cfg.channel_id),
 		.buffer = &data->sample_buffer,
 		.buffer_size = sizeof(data->sample_buffer),
-		.resolution = 12,
-		.calibrate = true,
+		.resolution = 12U,
 	};
 
 	return 0;
 }
 
-static const struct stm32_temp_config stm32_temp_dev_config = {
-	.tsv_mv = DT_INST_PROP(0, ts_voltage_mv),
-#if HAS_CALIBRATION
-	.cal1_addr = (uint16_t *)DT_INST_PROP(0, ts_cal1_addr),
-	.cal2_addr = (uint16_t *)DT_INST_PROP(0, ts_cal2_addr),
-	.cal1_temp = DT_INST_PROP(0, ts_cal1_temp),
-	.cal2_temp = DT_INST_PROP(0, ts_cal2_temp),
-	.cal_vrefanalog = DT_INST_PROP(0, ts_cal_vrefanalog),
-	.cal_offset = DT_INST_PROP(0, ts_cal_offset)
-#else
-	.avgslope = DT_INST_PROP(0, avgslope),
-	.v25_mv = DT_INST_PROP(0, v25),
-	.is_ntc = DT_INST_PROP(0, ntc)
-#endif
-};
+#define STM32_TEMP_DEFINE(inst)									\
+	static struct stm32_temp_data stm32_temp_dev_data_##inst = {				\
+		.adc = DEVICE_DT_GET(DT_INST_IO_CHANNELS_CTLR(inst)),				\
+		.adc_cfg = {									\
+			.gain = ADC_GAIN_1,							\
+			.reference = ADC_REF_INTERNAL,						\
+			.acquisition_time = ADC_ACQ_TIME_MAX,					\
+			.channel_id = DT_INST_IO_CHANNELS_INPUT(inst),				\
+			.differential = 0							\
+		},										\
+	};											\
+												\
+	static const struct stm32_temp_config stm32_temp_dev_config_##inst = {			\
+		COND_CODE_1(HAS_CALIBRATION,							\
+			    (.cal1_addr = (uint16_t *)DT_INST_PROP(inst, ts_cal1_addr),		\
+			     .cal2_addr = (uint16_t *)DT_INST_PROP(inst, ts_cal2_addr),		\
+			     .cal1_temp = DT_INST_PROP(inst, ts_cal1_temp),			\
+			     .cal2_temp = DT_INST_PROP(inst, ts_cal2_temp),			\
+			     .cal_vrefanalog = DT_INST_PROP(inst, ts_cal_vrefanalog),),		\
+			    (.avgslope = DT_INST_PROP(inst, avgslope),				\
+			     .v25_mv = DT_INST_PROP(inst, v25),					\
+			     .is_ntc = DT_INST_PROP(inst, ntc)))				\
+	};											\
+												\
+	DEVICE_DT_INST_DEFINE(inst, stm32_temp_init, NULL,					\
+			      &stm32_temp_dev_data_##inst, &stm32_temp_dev_config_##inst,	\
+			      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,				\
+			      &stm32_temp_driver_api);						\
 
-static struct stm32_temp_data stm32_temp_dev_data = {
-	.adc = DEVICE_DT_GET(DT_INST_IO_CHANNELS_CTLR(0)),
-	.channel = DT_INST_IO_CHANNELS_INPUT(0),
-};
-
-DEVICE_DT_INST_DEFINE(0, stm32_temp_init, NULL, &stm32_temp_dev_data, &stm32_temp_dev_config,
-		      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY, &stm32_temp_driver_api);
+DT_INST_FOREACH_STATUS_OKAY(STM32_TEMP_DEFINE)

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/printk.h>
-#include <shell/shell.h>
-#include <drivers/hwinfo.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/shell/shell.h>
+#include <zephyr/drivers/hwinfo.h>
 #include <zephyr/types.h>
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 static int cmd_get_device_id(const struct shell *sh, size_t argc, char **argv)
 {
@@ -76,6 +76,15 @@ static inline const char *cause_to_string(uint32_t cause)
 
 	case RESET_CLOCK:
 		return "clock";
+
+	case RESET_HARDWARE:
+		return "hardware";
+
+	case RESET_USER:
+		return "user";
+
+	case RESET_TEMPERATURE:
+		return "temperature";
 
 	default:
 		return "unknown";

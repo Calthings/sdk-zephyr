@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <drivers/can.h>
-#include <ztest.h>
+#include <zephyr/drivers/can.h>
+#include <zephyr/ztest.h>
 
 /**
  * @addtogroup t_can_driver
@@ -125,6 +125,7 @@ static inline void assert_frame_equal(const struct zcan_frame *frame1,
 				      const struct zcan_frame *frame2)
 {
 	zassert_equal(frame1->id_type, frame2->id_type, "ID type does not match");
+	zassert_equal(frame1->fd, frame2->fd, "FD bit does not match");
 	zassert_equal(frame1->rtr, frame2->rtr, "RTR bit does not match");
 	zassert_equal(frame1->id, frame2->id, "ID does not match");
 	zassert_equal(frame1->dlc, frame2->dlc, "DLC does not match");
@@ -339,6 +340,20 @@ static void send_receive(const struct zcan_filter *filter1,
 }
 
 /**
+ * @brief Test getting the CAN controller capabilities.
+ */
+static void test_get_capabilities(void)
+{
+	can_mode_t cap;
+	int err;
+
+	err = can_get_capabilities(can_dev, &cap);
+	zassert_equal(err, 0, "failed to get CAN capabilities (err %d)", err);
+	zassert_not_equal(cap & (CAN_MODE_LOOPBACK | CAN_MODE_FD), 0,
+			  "CAN-FD loopback mode not supported");
+}
+
+/**
  * @brief Test configuring the CAN controller for loopback mode.
  *
  * This test case must be run before sending/receiving test cases as it allows
@@ -348,7 +363,7 @@ static void test_set_loopback(void)
 {
 	int err;
 
-	err = can_set_mode(can_dev, CAN_LOOPBACK_MODE);
+	err = can_set_mode(can_dev, CAN_MODE_LOOPBACK | CAN_MODE_FD);
 	zassert_equal(err, 0, "failed to set loopback-mode (err %d)", err);
 }
 
@@ -387,6 +402,7 @@ void test_main(void)
 	zassert_true(device_is_ready(can_dev), "CAN device not ready");
 
 	ztest_test_suite(canfd_driver,
+			 ztest_unit_test(test_get_capabilities),
 			 ztest_unit_test(test_set_loopback),
 			 ztest_unit_test(test_send_receive_classic),
 			 ztest_unit_test(test_send_receive_fd),

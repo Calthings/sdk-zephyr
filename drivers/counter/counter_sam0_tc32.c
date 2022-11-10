@@ -6,12 +6,12 @@
 
 #define DT_DRV_COMPAT atmel_sam0_tc32
 
-#include <drivers/counter.h>
-#include <drivers/pinctrl.h>
-#include <device.h>
+#include <zephyr/drivers/counter.h>
+#include <zephyr/drivers/pinctrl.h>
+#include <zephyr/device.h>
 #include <soc.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(counter_sam0_tc32, CONFIG_COUNTER_LOG_LEVEL);
 
 struct counter_sam0_tc32_ch_data {
@@ -191,7 +191,7 @@ static int counter_sam0_tc32_set_alarm(const struct device *dev,
 		return -EINVAL;
 	}
 
-	int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (data->ch.callback) {
 		irq_unlock(key);
@@ -222,7 +222,7 @@ static int counter_sam0_tc32_cancel_alarm(const struct device *dev,
 	const struct counter_sam0_tc32_config *const cfg = dev->config;
 	TcCount32 *tc = cfg->regs;
 
-	int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	ARG_UNUSED(chan_id);
 
@@ -241,7 +241,7 @@ static int counter_sam0_tc32_set_top_value(const struct device *dev,
 	const struct counter_sam0_tc32_config *const cfg = dev->config;
 	TcCount32 *tc = cfg->regs;
 	int err = 0;
-	int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (data->ch.callback) {
 		irq_unlock(key);

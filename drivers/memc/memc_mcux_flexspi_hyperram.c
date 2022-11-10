@@ -6,8 +6,8 @@
 
 #define DT_DRV_COMPAT   nxp_imx_flexspi_hyperram
 
-#include <logging/log.h>
-#include <sys/util.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
 #include "memc_mcux_flexspi.h"
 
@@ -23,7 +23,7 @@
 	read-while-write hazards. This configuration is not recommended."
 #endif
 
-LOG_MODULE_REGISTER(memc_flexspi, CONFIG_MEMC_LOG_LEVEL);
+LOG_MODULE_REGISTER(memc_flexspi_hyperram, CONFIG_MEMC_LOG_LEVEL);
 
 enum {
 	READ_DATA,

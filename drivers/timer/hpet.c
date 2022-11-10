@@ -5,14 +5,14 @@
  */
 
 #define DT_DRV_COMPAT intel_hpet
-#include <device.h>
-#include <drivers/timer/system_timer.h>
-#include <sys_clock.h>
-#include <spinlock.h>
-#include <irq.h>
-#include <linker/sections.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/timer/system_timer.h>
+#include <zephyr/sys_clock.h>
+#include <zephyr/spinlock.h>
+#include <zephyr/irq.h>
+#include <zephyr/linker/sections.h>
 
-#include <dt-bindings/interrupt-controller/intel-ioapic.h>
+#include <zephyr/dt-bindings/interrupt-controller/intel-ioapic.h>
 
 #include <soc.h>
 
@@ -85,6 +85,10 @@ DEVICE_MMIO_TOPLEVEL_STATIC(hpet_regs, DT_DRV_INST(0));
 /* Timer 0 Comparator Register */
 #define TIMER0_COMPARATOR_LOW_REG	HPET_REG_ADDR(0x108)
 #define TIMER0_COMPARATOR_HIGH_REG	HPET_REG_ADDR(0x10c)
+
+#if defined(CONFIG_TEST)
+const int32_t z_sys_timer_irq_for_test = DT_IRQN(DT_INST(0, intel_hpet));
+#endif
 
 /**
  * @brief Return the value of the main counter.

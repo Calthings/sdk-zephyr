@@ -250,6 +250,11 @@ struct mdm_hl7800_polte_location_data {
 typedef void (*mdm_hl7800_event_callback_t)(enum mdm_hl7800_event event,
 					    void *event_data);
 
+struct mdm_hl7800_callback_agent {
+	sys_snode_t node;
+	mdm_hl7800_event_callback_t event_callback;
+};
+
 /**
  * @brief Power off the HL7800
  *
@@ -346,10 +351,18 @@ bool mdm_hl7800_valid_rat(uint8_t value);
 
 /**
  * @brief Register a function that is called when a modem event occurs.
+ * Multiple users registering for callbacks is supported.
  *
- * @param cb event callback
+ * @param agent event callback agent
  */
-void mdm_hl7800_register_event_callback(mdm_hl7800_event_callback_t cb);
+void mdm_hl7800_register_event_callback(struct mdm_hl7800_callback_agent *agent);
+
+/**
+ * @brief Unregister a callback event function
+ *
+ * @param agent event callback agent
+ */
+void mdm_hl7800_unregister_event_callback(struct mdm_hl7800_callback_agent *agent);
 
 /**
  * @brief Force modem module to generate status events.
@@ -509,6 +522,18 @@ void mdm_hl7800_register_cts_callback(void (*func)(int state));
  * @return int32_t negative errno, 0 on success
  */
 int32_t mdm_hl7800_set_bands(const char *bands);
+
+/**
+ * @brief Set the log level for the modem.
+ *
+ * @note It cannot be set higher than CONFIG_MODEM_LOG_LEVEL.
+ * If debug level is desired, then it must be compiled with that level.
+ *
+ * @param level 0 (None) - 4 (Debug)
+ *
+ * @retval new log level
+ */
+uint32_t mdm_hl7800_log_filter_set(uint32_t level);
 
 #ifdef __cplusplus
 }

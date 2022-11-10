@@ -5,11 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <pm/device.h>
-#include <pm/device_runtime.h>
-#include <sys/__assert.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
+#include <zephyr/sys/__assert.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(pm_device, CONFIG_PM_DEVICE_LOG_LEVEL);
 
 #ifdef CONFIG_PM_DEVICE_POWER_DOMAIN
@@ -47,7 +47,7 @@ static int runtime_suspend(const struct device *dev, bool async)
 		(void)k_mutex_lock(&pm->lock, K_FOREVER);
 	}
 
-	if ((pm->flags & BIT(PM_DEVICE_FLAG_RUNTIME_ENABLED)) == 0U) {
+	if (!atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED)) {
 		goto unlock;
 	}
 
@@ -119,13 +119,17 @@ int pm_device_runtime_get(const struct device *dev)
 	int ret = 0;
 	struct pm_device *pm = dev->pm;
 
+	if (pm == NULL) {
+		return -ENOTSUP;
+	}
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, device_runtime_get, dev);
 
 	if (!k_is_pre_kernel()) {
 		(void)k_mutex_lock(&pm->lock, K_FOREVER);
 	}
 
-	if ((pm->flags & BIT(PM_DEVICE_FLAG_RUNTIME_ENABLED)) == 0U) {
+	if (!atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED)) {
 		goto unlock;
 	}
 
@@ -136,6 +140,12 @@ int pm_device_runtime_get(const struct device *dev)
 	if (PM_DOMAIN(pm) != NULL) {
 		ret = pm_device_runtime_get(PM_DOMAIN(pm));
 		if (ret != 0) {
+			goto unlock;
+		}
+		/* Check if powering up this device failed */
+		if (atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_TURN_ON_FAILED)) {
+			(void)pm_device_runtime_put(PM_DOMAIN(pm));
+			ret = -EAGAIN;
 			goto unlock;
 		}
 	}
@@ -175,6 +185,10 @@ int pm_device_runtime_put(const struct device *dev)
 {
 	int ret;
 
+	if (dev->pm == NULL) {
+		return -ENOTSUP;
+	}
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, device_runtime_put, dev);
 	ret = runtime_suspend(dev, false);
 
@@ -193,6 +207,10 @@ int pm_device_runtime_put_async(const struct device *dev)
 {
 	int ret;
 
+	if (dev->pm == NULL) {
+		return -ENOTSUP;
+	}
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, device_runtime_put_async, dev);
 	ret = runtime_suspend(dev, true);
 	SYS_PORT_TRACING_FUNC_EXIT(pm, device_runtime_put_async, dev, ret);
@@ -205,6 +223,10 @@ int pm_device_runtime_enable(const struct device *dev)
 	int ret = 0;
 	struct pm_device *pm = dev->pm;
 
+	if (pm == NULL) {
+		return -ENOTSUP;
+	}
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, device_runtime_enable, dev);
 
 	if (pm_device_state_is_locked(dev)) {
@@ -216,7 +238,7 @@ int pm_device_runtime_enable(const struct device *dev)
 		(void)k_mutex_lock(&pm->lock, K_FOREVER);
 	}
 
-	if ((pm->flags & BIT(PM_DEVICE_FLAG_RUNTIME_ENABLED)) != 0U) {
+	if (atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED)) {
 		goto unlock;
 	}
 
@@ -253,13 +275,17 @@ int pm_device_runtime_disable(const struct device *dev)
 	int ret = 0;
 	struct pm_device *pm = dev->pm;
 
+	if (pm == NULL) {
+		return -ENOTSUP;
+	}
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, device_runtime_disable, dev);
 
 	if (!k_is_pre_kernel()) {
 		(void)k_mutex_lock(&pm->lock, K_FOREVER);
 	}
 
-	if ((pm->flags & BIT(PM_DEVICE_FLAG_RUNTIME_ENABLED)) == 0U) {
+	if (!atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED)) {
 		goto unlock;
 	}
 
@@ -297,5 +323,5 @@ bool pm_device_runtime_is_enabled(const struct device *dev)
 {
 	struct pm_device *pm = dev->pm;
 
-	return atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED);
+	return pm && atomic_test_bit(&pm->flags, PM_DEVICE_FLAG_RUNTIME_ENABLED);
 }

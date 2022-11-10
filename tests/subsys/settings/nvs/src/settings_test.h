@@ -9,9 +9,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <ztest.h>
+#include <zephyr/ztest.h>
 
-#include "settings/settings.h"
+#include <zephyr/settings/settings.h>
 
 #ifdef __cplusplus
 extern "C" {

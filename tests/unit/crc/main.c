@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <sys/crc.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/crc.h>
 #include "../../../lib/os/crc8_sw.c"
 #include "../../../lib/os/crc16_sw.c"
 #include "../../../lib/os/crc32_sw.c"

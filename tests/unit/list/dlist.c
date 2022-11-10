@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <sys/dlist.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/dlist.h>
 
 static sys_dlist_t test_list;
 

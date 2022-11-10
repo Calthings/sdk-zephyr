@@ -5,15 +5,15 @@
  */
 
 #define LOG_LEVEL CONFIG_USB_DEVICE_NETWORK_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(usb_eem);
 
-#include <net/net_pkt.h>
-#include <net/ethernet.h>
+#include <zephyr/net/net_pkt.h>
+#include <zephyr/net/ethernet.h>
 #include <net_private.h>
 
-#include <usb/usb_device.h>
-#include <usb/class/usb_cdc.h>
+#include <zephyr/usb/usb_device.h>
+#include <zephyr/usb/class/usb_cdc.h>
 
 #include "netusb.h"
 
@@ -176,17 +176,17 @@ static void eem_read_cb(uint8_t ep, int size, void *priv)
 			break;
 		}
 
-		pkt = net_pkt_alloc_with_buffer(netusb_net_iface(),
-						eem_size - sizeof(sentinel),
-						AF_UNSPEC, 0, K_FOREVER);
+		pkt = net_pkt_rx_alloc_with_buffer(netusb_net_iface(),
+						   eem_size - sizeof(sentinel),
+						   AF_UNSPEC, 0, K_FOREVER);
 		if (!pkt) {
-			LOG_ERR("Unable to alloc pkt\n");
+			LOG_ERR("Unable to alloc pkt");
 			break;
 		}
 
 		/* copy payload and discard 32-bit sentinel */
 		if (net_pkt_write(pkt, ptr, eem_size - sizeof(sentinel))) {
-			LOG_ERR("Unable to write into pkt\n");
+			LOG_ERR("Unable to write into pkt");
 			net_pkt_unref(pkt);
 			break;
 		}

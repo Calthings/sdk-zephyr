@@ -5,15 +5,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <drivers/flash.h>
+#include <zephyr/drivers/flash.h>
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <fs/nvs.h>
-#include <sys/crc.h>
+#include <zephyr/fs/nvs.h>
+#include <zephyr/sys/crc.h>
 #include "nvs_priv.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(fs_nvs, CONFIG_NVS_LOG_LEVEL);
 
 static int nvs_prev_ate(struct nvs_fs *fs, uint32_t *addr, struct nvs_ate *ate);
@@ -158,7 +158,6 @@ static int nvs_flash_rd(struct nvs_fs *fs, uint32_t addr, void *data,
 
 	rc = flash_read(fs->flash_device, offset, data, len);
 	return rc;
-
 }
 
 /* allocation entry write */
@@ -378,7 +377,6 @@ static int nvs_ate_valid(struct nvs_fs *fs, const struct nvs_ate *entry)
 	}
 
 	return 1;
-
 }
 
 /* nvs_close_ate_valid validates an sector close ate: a valid sector close ate:
@@ -410,9 +408,6 @@ static int nvs_flash_wrt_entry(struct nvs_fs *fs, uint16_t id, const void *data,
 {
 	int rc;
 	struct nvs_ate entry;
-	size_t ate_size;
-
-	ate_size = nvs_al_size(fs, sizeof(struct nvs_ate));
 
 	entry.id = id;
 	entry.offset = (uint16_t)(fs->data_wra & ADDR_OFFS_MASK);
@@ -580,6 +575,7 @@ static int nvs_add_gc_done_ate(struct nvs_fs *fs)
 
 	return nvs_flash_ate_wrt(fs, &gc_done_ate);
 }
+
 /* garbage collection: the address ate_wra has been updated to the new sector
  * that has just been started. The data to gc is in the sector after this new
  * sector.
@@ -716,7 +712,7 @@ static int nvs_startup(struct nvs_fs *fs)
 
 	ate_size = nvs_al_size(fs, sizeof(struct nvs_ate));
 	/* step through the sectors to find a open sector following
-	 * a closed sector, this is where NVS can to write.
+	 * a closed sector, this is where NVS can write.
 	 */
 	for (i = 0; i < fs->sector_count; i++) {
 		addr = (i << ADDR_SECT_SHIFT) +
@@ -763,7 +759,6 @@ static int nvs_startup(struct nvs_fs *fs)
 	if (rc) {
 		goto end;
 	}
-
 
 	/* addr contains address of the last valid ate in the most recent sector
 	 * search for the first ate containing all cells erased, in the process
@@ -1240,7 +1235,6 @@ ssize_t nvs_calc_free_space(struct nvs_fs *fs)
 		if (step_addr == fs->ate_wra) {
 			break;
 		}
-
 	}
 	return free_space;
 }

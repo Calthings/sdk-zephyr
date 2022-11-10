@@ -6,7 +6,7 @@
 #ifndef ZEPHYR_INCLUDE_TRACING_TRACING_H_
 #define ZEPHYR_INCLUDE_TRACING_TRACING_H_
 
-#include <kernel.h>
+#include <zephyr/kernel.h>
 
 #include "tracking.h"
 
@@ -1870,17 +1870,17 @@
  * @brief Trace posting of an Event call entry
  * @param event Event object
  * @param events Set of posted events
- * @param accumulate True if events accumulate, false otherwise
+ * @param events_mask Mask to apply against posted events
  */
-#define sys_port_trace_k_event_post_enter(event, events, accumulate)
+#define sys_port_trace_k_event_post_enter(event, events, events_mask)
 
 /**
  * @brief Trace posting of an Event call exit
  * @param event Event object
  * @param events Set of posted events
- * @param accumulate True if events accumulate, false otherwise
+ * @param events_mask Mask to apply against posted events
  */
-#define sys_port_trace_k_event_post_exit(event, events, accumulate)
+#define sys_port_trace_k_event_post_exit(event, events, events_mask)
 
 /**
  * @brief Trace waiting of an Event call entry

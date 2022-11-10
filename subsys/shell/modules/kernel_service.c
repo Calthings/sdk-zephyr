@@ -5,16 +5,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/printk.h>
-#include <shell/shell.h>
-#include <init.h>
-#include <sys/reboot.h>
-#include <debug/stack.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/shell/shell.h>
+#include <zephyr/init.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/debug/stack.h>
 #include <string.h>
-#include <device.h>
-#include <drivers/timer/system_timer.h>
-#include <kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/timer/system_timer.h>
+#include <zephyr/kernel.h>
 #include <kernel_internal.h>
+#include <stdlib.h>
+#if defined(CONFIG_LOG_RUNTIME_FILTERING)
+#include <zephyr/logging/log_ctrl.h>
+#endif
 
 static int cmd_kernel_version(const struct shell *shell,
 			      size_t argc, char **argv)
@@ -62,6 +66,7 @@ static void shell_tdata_dump(const struct k_thread *cthread, void *user_data)
 	size_t size = thread->stack_info.size;
 	const char *tname;
 	int ret;
+	char state_str[32];
 
 #ifdef CONFIG_THREAD_RUNTIME_STATS
 	k_thread_runtime_stats_t rt_stats_thread;
@@ -79,7 +84,8 @@ static void shell_tdata_dump(const struct k_thread *cthread, void *user_data)
 		      thread->base.user_options,
 		      thread->base.prio,
 		      (int64_t)thread->base.timeout.dticks);
-	shell_print(shell, "\tstate: %s, entry: %p", k_thread_state_str(thread),
+	shell_print(shell, "\tstate: %s, entry: %p",
+		    k_thread_state_str(thread, state_str, sizeof(state_str)),
 		    thread->entry.pEntry);
 
 #ifdef CONFIG_THREAD_RUNTIME_STATS
@@ -182,8 +188,8 @@ static void shell_stack_dump(const struct k_thread *thread, void *user_data)
 		      size, unused, size - unused, size, pcnt);
 }
 
-extern K_KERNEL_STACK_ARRAY_DEFINE(z_interrupt_stacks, CONFIG_MP_NUM_CPUS,
-				   CONFIG_ISR_STACK_SIZE);
+K_KERNEL_STACK_ARRAY_DECLARE(z_interrupt_stacks, CONFIG_MP_NUM_CPUS,
+			     CONFIG_ISR_STACK_SIZE);
 
 static int cmd_kernel_stacks(const struct shell *shell,
 			     size_t argc, char **argv)
@@ -211,6 +217,62 @@ static int cmd_kernel_stacks(const struct shell *shell,
 			      size - unused, size,
 			      ((size - unused) * 100U) / size);
 	}
+
+	return 0;
+}
+#endif
+
+static int cmd_kernel_sleep(const struct shell *sh,
+			    size_t argc, char **argv)
+{
+	ARG_UNUSED(sh);
+	ARG_UNUSED(argc);
+
+	uint32_t ms;
+	int err = 0;
+
+	ms = shell_strtoul(argv[1], 10, &err);
+
+	if (!err) {
+		k_msleep(ms);
+	} else {
+		shell_error(sh, "Unable to parse input (err %d)", err);
+		return err;
+	}
+
+	return 0;
+}
+
+#if defined(CONFIG_LOG_RUNTIME_FILTERING)
+static int cmd_kernel_log_level_set(const struct shell *sh,
+				    size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	int err = 0;
+
+	uint8_t severity = shell_strtoul(argv[2], 10, &err);
+
+	if (err) {
+		shell_error(sh, "Unable to parse log severity (err %d)", err);
+
+		return err;
+	}
+
+	if (severity > LOG_LEVEL_DBG) {
+		shell_error(sh, "Invalid log level: %d", severity);
+		shell_help(sh);
+		return SHELL_CMD_HELP_PRINTED;
+	}
+
+	int source_id = log_source_id_get(argv[1]);
+
+	/* log_filter_set() takes an int16_t for the source ID */
+	if (source_id < 0) {
+		shell_error(sh, "Unable to find log source: %s", argv[1]);
+	}
+
+	log_filter_set(NULL, 0, (int16_t)source_id, severity);
 
 	return 0;
 }
@@ -260,6 +322,11 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_kernel,
 #endif
 	SHELL_CMD(uptime, NULL, "Kernel uptime.", cmd_kernel_uptime),
 	SHELL_CMD(version, NULL, "Kernel version.", cmd_kernel_version),
+	SHELL_CMD_ARG(sleep, NULL, "ms", cmd_kernel_sleep, 2, 0),
+#if defined(CONFIG_LOG_RUNTIME_FILTERING)
+	SHELL_CMD_ARG(log-level, NULL, "<module name> <severity (0-4)>",
+		cmd_kernel_log_level_set, 3, 0),
+#endif
 	SHELL_SUBCMD_SET_END /* Array terminated. */
 );
 

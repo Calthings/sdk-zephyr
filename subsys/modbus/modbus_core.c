@@ -5,12 +5,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modbus, CONFIG_MODBUS_LOG_LEVEL);
 
-#include <kernel.h>
+#include <zephyr/kernel.h>
 #include <string.h>
-#include <sys/byteorder.h>
+#include <zephyr/sys/byteorder.h>
 #include <modbus_internal.h>
 
 #define DT_DRV_COMPAT zephyr_modbus_serial
@@ -35,7 +35,7 @@ DT_INST_FOREACH_STATUS_OKAY(MB_RTU_DEFINE_GPIO_CFGS)
 		    (&prop##_cfg_##inst), (NULL))
 
 #define MODBUS_DT_GET_SERIAL_DEV(inst) {			\
-		.dev_name = DT_INST_BUS_LABEL(inst),		\
+		.dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),	\
 		.de = MB_RTU_ASSIGN_GPIO_CFG(inst, de_gpios),	\
 		.re = MB_RTU_ASSIGN_GPIO_CFG(inst, re_gpios),	\
 	},

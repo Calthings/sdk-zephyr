@@ -6,6 +6,7 @@ menuconfig MCUMGR
 	bool "mcumgr Support"
 	select NET_BUF
 	select ZCBOR
+	select BOOT_IMAGE_ACCESS_HOOKS if SOC_NRF5340_CPUAPP_QKAA
 	help
 	  This option enables the mcumgr management library.
 
@@ -303,7 +304,7 @@ menuconfig MCUMGR_SMP_UDP
 	select NETWORKING
 	select NET_UDP
 	select NET_SOCKETS
-	select NET_SOCKETS_POSIX_NAMES
+	select NET_SOCKETS_POSIX_NAMES if !POSIX_API
 	help
 	  Enables handling of SMP commands received over UDP.
 	  Will start a thread for listening on the configured UDP port.

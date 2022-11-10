@@ -8,11 +8,11 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <net/buf.h>
+#include <zephyr/net/buf.h>
 
 #include "subsys/bluetooth/host/at.h"
 
-#include <ztest.h>
+#include <zephyr/ztest.h>
 
 static struct at_client at;
 static char buffer[140];

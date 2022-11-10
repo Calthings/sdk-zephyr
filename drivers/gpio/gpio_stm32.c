@@ -8,22 +8,22 @@
 
 #include <errno.h>
 
-#include <kernel.h>
-#include <device.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
 #include <soc.h>
 #include <stm32_ll_bus.h>
 #include <stm32_ll_exti.h>
 #include <stm32_ll_gpio.h>
 #include <stm32_ll_pwr.h>
 #include <stm32_ll_system.h>
-#include <drivers/gpio.h>
-#include <drivers/clock_control/stm32_clock_control.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <pinmux/pinmux_stm32.h>
-#include <drivers/pinmux.h>
-#include <sys/util.h>
-#include <drivers/interrupt_controller/exti_stm32.h>
-#include <pm/device.h>
-#include <pm/device_runtime.h>
+#include <zephyr/drivers/pinmux.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/drivers/interrupt_controller/exti_stm32.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #include "stm32_hsem.h"
 #include "gpio_stm32.h"
@@ -90,6 +90,42 @@ static int gpio_stm32_flags_to_conf(int flags, int *pincfg)
 
 	return 0;
 }
+
+/**
+ * @brief Custom stm32 flags to zephyr
+ */
+#ifdef CONFIG_GPIO_GET_CONFIG
+static int gpio_stm32_pincfg_to_flags(int otype, int pupd, int mode,
+				      int *out_flags)
+{
+	int flags = 0;
+
+	if (mode == LL_GPIO_MODE_OUTPUT) {
+		flags |= GPIO_OUTPUT;
+		if (otype == LL_GPIO_OUTPUT_OPENDRAIN) {
+			flags |= GPIO_OPEN_DRAIN;
+		}
+	} else if (mode == LL_GPIO_MODE_INPUT) {
+		flags |= GPIO_INPUT;
+#ifdef CONFIG_SOC_SERIES_STM32F1X
+	} else if (mode == LL_GPIO_MODE_FLOATING) {
+		flags |= GPIO_INPUT;
+#endif
+	} else {
+		flags |= GPIO_DISCONNECTED;
+	}
+
+	if (pupd == LL_GPIO_PULL_UP) {
+		flags |= GPIO_PULL_UP;
+	} else if (pupd == LL_GPIO_PULL_DOWN) {
+		flags |= GPIO_PULL_DOWN;
+	}
+
+	*out_flags = flags;
+
+	return 0;
+}
+#endif
 
 /**
  * @brief Translate pin to pinval that the LL library needs
@@ -521,6 +557,35 @@ static int gpio_stm32_config(const struct device *dev,
 	return 0;
 }
 
+/**
+ * @brief Get configuration of pin
+ */
+#ifdef CONFIG_GPIO_GET_CONFIG
+static int gpio_stm32_get_config(const struct device *dev,
+				 gpio_pin_t pin, gpio_flags_t *flags)
+{
+	const struct gpio_stm32_config *cfg = dev->config;
+	GPIO_TypeDef *gpio = (GPIO_TypeDef *)cfg->base;
+	unsigned int mode, otype, pupd;
+	int pin_ll;
+	int err;
+
+	err = pm_device_runtime_get(dev);
+	if (err < 0) {
+		return err;
+	}
+
+	pin_ll = stm32_pinval_get(pin);
+	otype = LL_GPIO_GetPinOutputType(gpio, pin_ll);
+	pupd = LL_GPIO_GetPinPull(gpio, pin_ll);
+	mode = LL_GPIO_GetPinMode(gpio, pin_ll);
+
+	gpio_stm32_pincfg_to_flags(otype, pupd, mode, flags);
+
+	return pm_device_runtime_put(dev);
+}
+#endif
+
 static int gpio_stm32_pin_interrupt_configure(const struct device *dev,
 					      gpio_pin_t pin,
 					      enum gpio_int_mode mode,
@@ -585,6 +650,9 @@ static int gpio_stm32_manage_callback(const struct device *dev,
 
 static const struct gpio_driver_api gpio_stm32_driver = {
 	.pin_configure = gpio_stm32_config,
+#ifdef CONFIG_GPIO_GET_CONFIG
+	.pin_get_config = gpio_stm32_get_config,
+#endif
 	.port_get_raw = gpio_stm32_port_get_raw,
 	.port_set_masked_raw = gpio_stm32_port_set_masked_raw,
 	.port_set_bits_raw = gpio_stm32_port_set_bits_raw,

@@ -41,6 +41,14 @@
 
 /* Advertisement channel maximum payload size */
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
+
+/* Extended Scan and Periodic Sync Rx PDU time reservation */
+#if defined(CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN)
+#define PDU_AC_EXT_PAYLOAD_RX_SIZE 0U
+#else /* !CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN */
+#define PDU_AC_EXT_PAYLOAD_RX_SIZE PDU_AC_EXT_PAYLOAD_SIZE_MAX
+#endif /* !CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN */
+
 #define PDU_AC_EXT_HEADER_SIZE_MIN  offsetof(struct pdu_adv_com_ext_adv, \
 					     ext_hdr_adv_data)
 #define PDU_AC_EXT_HEADER_SIZE_MAX  63
@@ -54,9 +62,11 @@
 					     CONFIG_BT_CTLR_ADV_DATA_LEN_MAX), \
 					    PDU_AC_EXT_PAYLOAD_SIZE_MAX), \
 					PDU_AC_LEG_PAYLOAD_SIZE_MAX)
-#else
+#define PDU_AC_EXT_AD_DATA_LEN_MAX  (PDU_AC_PAYLOAD_SIZE_MAX - \
+				     PDU_AC_EXT_PAYLOAD_OVERHEAD)
+#else /* !CONFIG_BT_CTLR_ADV_EXT */
 #define PDU_AC_PAYLOAD_SIZE_MAX     PDU_AC_LEG_PAYLOAD_SIZE_MAX
-#endif
+#endif /* !CONFIG_BT_CTLR_ADV_EXT */
 
 /* Link Layer header size of Adv PDU. Assumes pdu_adv is packed */
 #define PDU_AC_LL_HEADER_SIZE  (offsetof(struct pdu_adv, payload))
@@ -76,10 +86,20 @@
 /* CRC polynomial */
 #define PDU_CRC_POLYNOMIAL     ((0x5bUL) | ((0x06UL) << 8) | ((0x00UL) << 16))
 
-/* Data channel minimum payload size and time */
-#define PDU_DC_PAYLOAD_SIZE_MIN 27
-#define PDU_DC_PAYLOAD_TIME_MIN 328
+/* Data channel minimum payload size and time in us */
+#define PDU_DC_PAYLOAD_SIZE_MIN       27
+#define PDU_DC_PAYLOAD_TIME_MIN       328
 #define PDU_DC_PAYLOAD_TIME_MIN_CODED 2704
+
+/* Data channel maximum payload size and time in us */
+#define PDU_DC_PAYLOAD_SIZE_MAX       251
+#define PDU_DC_PAYLOAD_TIME_MAX_CODED 17040
+
+#if defined(CONFIG_BT_CTLR_DF)
+#define PDU_DC_PAYLOAD_TIME_MAX       2128
+#else /* !CONFIG_BT_CTLR_DF */
+#define PDU_DC_PAYLOAD_TIME_MAX       2120
+#endif /* !CONFIG_BT_CTLR_DF */
 
 /* Link Layer header size of Data PDU. Assumes pdu_data is packed */
 #define PDU_DC_LL_HEADER_SIZE  (offsetof(struct pdu_data, lldata))
@@ -101,7 +121,7 @@
 /* Standard allows 2 us timing uncertainty inside the event */
 #define EVENT_MAFS_MAX_US       (EVENT_MAFS_US + EVENT_CLOCK_JITTER_US)
 /* Controller defined back to back transmit MAFS for extended advertising */
-#define EVENT_B2B_MAFS_US       (CONFIG_BT_CTLR_ADV_PDU_BACK2BACK_AFS)
+#define EVENT_B2B_MAFS_US       (CONFIG_BT_CTLR_ADV_AUX_PDU_BACK2BACK_AFS)
 /* Controller defined back to back transmit MAFS for periodic advertising */
 #define EVENT_SYNC_B2B_MAFS_US  (CONFIG_BT_CTLR_ADV_SYNC_PDU_BACK2BACK_AFS)
 /* Minimum Subevent Space timings */
@@ -688,25 +708,23 @@ struct pdu_data_llctrl_cte_rsp {
 } __packed;
 
 struct pdu_data_llctrl_cis_req {
-	uint8_t cig_id;
-	uint8_t cis_id;
-	uint8_t c_phy;
-	uint8_t p_phy;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	uint16_t c_max_sdu:12;
-	uint16_t rfu0:3;
-	uint16_t framed:1;
-	uint16_t p_max_sdu:12;
-	uint16_t rfu1:4;
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	uint16_t framed:1;
-	uint16_t rfu0:3;
-	uint16_t c_max_sdu:12;
-	uint16_t rfu1:4;
-	uint16_t p_max_sdu:12;
-#else
-#error "Unsupported endianness"
-#endif
+	uint8_t  cig_id;
+	uint8_t  cis_id;
+	uint8_t  c_phy;
+	uint8_t  p_phy;
+	/* c_max_sdu:12
+	 * rfu:3
+	 * framed:1
+	 * NOTE: This layout as bitfields is not portable for BE using
+	 * endianness conversion macros.
+	 */
+	uint8_t  c_max_sdu_packed[2];
+	/* p_max_sdu:12
+	 * rfu:4
+	 * NOTE: This layout as bitfields is not portable for BE using
+	 * endianness conversion macros.
+	 */
+	uint8_t  p_max_sdu[2];
 	uint8_t  c_sdu_interval[3];
 	uint8_t  p_sdu_interval[3];
 	uint16_t c_max_pdu;
@@ -903,6 +921,15 @@ struct pdu_iso_sdu_sh {
 #error "Unsupported endianness"
 #endif /* __BYTE_ORDER__ */
 } __packed;
+
+enum pdu_cis_llid {
+	/** Unframed complete or end fragment */
+	PDU_CIS_LLID_COMPLETE_END = 0x00,
+	/** Unframed start or continuation fragment */
+	PDU_CIS_LLID_START_CONTINUE = 0x01,
+	/** Framed; one or more segments of a SDU */
+	PDU_CIS_LLID_FRAMED = 0x02
+};
 
 struct pdu_cis {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

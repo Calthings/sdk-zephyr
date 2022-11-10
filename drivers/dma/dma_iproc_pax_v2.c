@@ -6,22 +6,22 @@
 
 #define DT_DRV_COMPAT brcm_iproc_pax_dma_v2
 
-#include <arch/cpu.h>
-#include <cache.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/cache.h>
 #include <errno.h>
-#include <init.h>
-#include <kernel.h>
-#include <linker/sections.h>
+#include <zephyr/init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/linker/sections.h>
 #include <soc.h>
 #include <string.h>
-#include <toolchain.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
-#include <drivers/dma.h>
-#include <drivers/pcie/endpoint/pcie_ep.h>
+#include <zephyr/drivers/dma.h>
+#include <zephyr/drivers/pcie/endpoint/pcie_ep.h>
 #include "dma_iproc_pax_v2.h"
 
 #define LOG_LEVEL CONFIG_DMA_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dma_iproc_pax_v2);
 
 /* Driver runtime data for PAX DMA and RM */
@@ -413,10 +413,11 @@ static inline void set_ring_active(struct dma_iproc_pax_data *pd,
 	uint32_t val;
 
 	val = sys_read32(RM_RING_REG(pd, idx, RING_CONTROL));
-	if (active)
+	if (active) {
 		val |= RING_CONTROL_ACTIVE;
-	else
+	} else {
 		val &= ~RING_CONTROL_ACTIVE;
+	}
 	sys_write32(val, RM_RING_REG(pd, idx, RING_CONTROL));
 }
 
@@ -443,9 +444,9 @@ static int init_ring(struct dma_iproc_pax_data *pd, enum ring_idx idx)
 	sys_write32(RING_CONTROL_FLUSH, RM_RING_REG(pd, idx,
 						    RING_CONTROL));
 	do {
-		if (sys_read32(RM_RING_REG(pd, idx, RING_FLUSH_DONE)) &
-		    RING_FLUSH_DONE_MASK)
+		if (sys_read32(RM_RING_REG(pd, idx, RING_FLUSH_DONE)) & RING_FLUSH_DONE_MASK) {
 			break;
+		}
 		k_busy_wait(1);
 	} while (--timeout);
 
@@ -968,8 +969,9 @@ static int dma_iproc_pax_process_dma_blocks(const struct device *dev,
 						config->channel_direction,
 						block_config,
 						&non_hdr_bd_count);
-		if (ret)
+		if (ret) {
 			goto err;
+		}
 		block_config = block_config->next_block;
 	}
 

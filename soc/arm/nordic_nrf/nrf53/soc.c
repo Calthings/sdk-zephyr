@@ -12,21 +12,24 @@
  * for the Nordic Semiconductor nRF53 family processor.
  */
 
-#include <kernel.h>
-#include <init.h>
-#include <arch/arm/aarch32/cortex_m/cmsis.h>
+#include <zephyr/kernel.h>
+#include <zephyr/init.h>
+#include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 #include <soc/nrfx_coredep.h>
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 #include <nrf_erratas.h>
 #if defined(CONFIG_SOC_NRF5340_CPUAPP)
-#include <drivers/gpio.h>
-#include <devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/devicetree.h>
 #include <hal/nrf_cache.h>
 #include <hal/nrf_gpio.h>
 #include <hal/nrf_oscillators.h>
 #include <hal/nrf_regulators.h>
 #elif defined(CONFIG_SOC_NRF5340_CPUNET)
 #include <hal/nrf_nvmc.h>
+#endif
+#if defined(CONFIG_PM_S2RAM)
+#include <hal/nrf_vmc.h>
 #endif
 #include <soc_secure.h>
 
@@ -66,6 +69,35 @@ extern void z_arm_nmi_init(void);
 #define LOG_LEVEL CONFIG_SOC_LOG_LEVEL
 LOG_MODULE_REGISTER(soc);
 
+#if defined(CONFIG_PM_S2RAM)
+
+#if defined(CONFIG_SOC_NRF5340_CPUAPP)
+#define RAM_N_BLOCK	(8)
+#elif defined(CONFIG_SOC_NRF5340_CPUNET)
+#define RAM_N_BLOCK	(4)
+#endif /* CONFIG_SOC_NRF5340_CPUAPP || CONFIG_SOC_NRF5340_CPUNET */
+
+#define MASK_ALL_SECT	(VMC_RAM_POWER_S0RETENTION_Msk  | VMC_RAM_POWER_S1RETENTION_Msk  | \
+			 VMC_RAM_POWER_S2RETENTION_Msk  | VMC_RAM_POWER_S3RETENTION_Msk  | \
+			 VMC_RAM_POWER_S4RETENTION_Msk  | VMC_RAM_POWER_S5RETENTION_Msk  | \
+			 VMC_RAM_POWER_S6RETENTION_Msk  | VMC_RAM_POWER_S7RETENTION_Msk  | \
+			 VMC_RAM_POWER_S8RETENTION_Msk  | VMC_RAM_POWER_S9RETENTION_Msk  | \
+			 VMC_RAM_POWER_S10RETENTION_Msk | VMC_RAM_POWER_S11RETENTION_Msk | \
+			 VMC_RAM_POWER_S12RETENTION_Msk | VMC_RAM_POWER_S13RETENTION_Msk | \
+			 VMC_RAM_POWER_S14RETENTION_Msk | VMC_RAM_POWER_S15RETENTION_Msk)
+
+static void enable_ram_retention(void)
+{
+	/*
+	 * Enable RAM retention for *ALL* the SRAM
+	 */
+	for (size_t n = 0; n < RAM_N_BLOCK; n++) {
+		nrf_vmc_ram_block_retention_set(NRF_VMC, n, MASK_ALL_SECT);
+	}
+
+}
+#endif /* CONFIG_PM_S2RAM */
+
 static int nordicsemi_nrf53_init(const struct device *arg)
 {
 	uint32_t key;
@@ -101,8 +133,8 @@ static int nordicsemi_nrf53_init(const struct device *arg)
 	 * This is handled by the TF-M platform so we skip it when TF-M is
 	 * enabled.
 	 */
-	nrf_gpio_pin_mcu_select(PIN_XL1, NRF_GPIO_PIN_MCUSEL_PERIPHERAL);
-	nrf_gpio_pin_mcu_select(PIN_XL2, NRF_GPIO_PIN_MCUSEL_PERIPHERAL);
+	nrf_gpio_pin_control_select(PIN_XL1, NRF_GPIO_PIN_SEL_PERIPHERAL);
+	nrf_gpio_pin_control_select(PIN_XL2, NRF_GPIO_PIN_SEL_PERIPHERAL);
 #endif /* !defined(CONFIG_BUILD_WITH_TFM) */
 #endif /* defined(CONFIG_SOC_ENABLE_LFXO) */
 #if defined(CONFIG_SOC_HFXO_CAP_INTERNAL)
@@ -143,10 +175,14 @@ static int nordicsemi_nrf53_init(const struct device *arg)
 	};
 
 	for (int i = 0; i < ARRAY_SIZE(forwarded_psels); i++) {
-		soc_secure_gpio_pin_mcu_select(forwarded_psels[i], NRF_GPIO_PIN_MCUSEL_NETWORK);
+		soc_secure_gpio_pin_mcu_select(forwarded_psels[i], NRF_GPIO_PIN_SEL_NETWORK);
 	}
 
 #endif
+
+#if defined(CONFIG_PM_S2RAM)
+	enable_ram_retention();
+#endif /* CONFIG_PM_S2RAM */
 
 	/* Install default handler that simply resets the CPU
 	 * if configured in the kernel, NOP otherwise

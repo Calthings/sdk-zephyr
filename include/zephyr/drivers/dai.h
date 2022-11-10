@@ -160,6 +160,11 @@ enum dai_trigger_cmd {
 	 * state.
 	 */
 	DAI_TRIGGER_RESET,
+	/** @brief Copy
+	 *
+	 * This trigger prepares for data copying.
+	 */
+	DAI_TRIGGER_COPY,
 };
 
 /** @brief Properties of DAI
@@ -169,13 +174,17 @@ enum dai_trigger_cmd {
  * for example to setup dma outside the driver code.
  *
  * @param fifo_address Fifo hw address for e.g. when connecting to dma.
+ * @param fifo_depth Fifo depth.
  * @param dma_hs_id Dma handshake id.
  * @param reg_init_delay Delay for initializing registers.
+ * @param stream_id Stream ID.
  */
 struct dai_properties {
 	uint32_t fifo_address; /* fifo address */
+	uint32_t fifo_depth; /* fifo depth */
 	uint32_t dma_hs_id; /* dma handshake id */
 	uint32_t reg_init_delay; /* delay for register init */
+	int stream_id; /* stream id */
 };
 
 /** Main dai config struct

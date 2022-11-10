@@ -26,12 +26,12 @@
  * SCL pin may be a push/pull output.
  */
 
-#include <device.h>
+#include <zephyr/device.h>
 #include <errno.h>
-#include <drivers/gpio.h>
-#include <drivers/i2c.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/i2c.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_gpio);
 
 #include "i2c-priv.h"
@@ -145,7 +145,7 @@ static int i2c_gpio_init(const struct device *dev)
 
 	bitrate_cfg = i2c_map_dt_bitrate(config->bitrate);
 	err = i2c_bitbang_configure(&context->bitbang,
-				    I2C_MODE_MASTER | bitrate_cfg);
+				    I2C_MODE_CONTROLLER | bitrate_cfg);
 	if (err) {
 		LOG_ERR("failed to configure I2C bitbang (err %d)", err);
 		return err;

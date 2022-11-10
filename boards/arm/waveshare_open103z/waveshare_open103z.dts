@@ -74,6 +74,7 @@
 		led2 = &led_3;
 		led3 = &led_4;
 		sw0 = &button;
+		watchdog0 = &iwdg;
 	};
 };
 
@@ -139,7 +140,7 @@
 };
 
 &can1 {
-	pinctrl-0 = <&can_rx_pb8 &can_tx_pb9>;
+	pinctrl-0 = <&can_rx_remap1_pb8 &can_tx_remap1_pb9>;
 	pinctrl-names = "default";
 	/*
 	 * make sure CAN and USB are not enabled at the same time

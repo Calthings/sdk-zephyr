@@ -5,9 +5,9 @@
  */
 #include <stdint.h>
 
-#include <toolchain.h>
-#include <sys/util.h>
-#include <sys/byteorder.h>
+#include <zephyr/toolchain.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "hal/ccm.h"
 #include "hal/radio.h"
@@ -60,8 +60,10 @@ static void isr_rx_aux_chain(void *param);
 static void isr_rx_done_cleanup(struct lll_sync *lll, uint8_t crc_ok, bool sync_term);
 static void isr_done(void *param);
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
-static int create_iq_report(struct lll_sync *lll, uint8_t rssi_ready,
-			    uint8_t packet_status);
+static int iq_report_create_put(struct lll_sync *lll, uint8_t rssi_ready,
+				uint8_t packet_status);
+static int iq_report_incomplete_create_put(struct lll_sync *lll);
+static void iq_report_incomplete_release_put(struct lll_sync *lll);
 static bool is_max_cte_reached(uint8_t max_cte_count, uint8_t cte_count);
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 static uint8_t data_channel_calc(struct lll_sync *lll);
@@ -172,9 +174,28 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 	cfg = lll_df_sync_cfg_latest_get(&lll->df_cfg, NULL);
 
 	if (cfg->is_enabled) {
-		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  lll_aux->chan, CTE_INFO_IN_PAYLOAD, lll_aux->phy);
+		int err;
+
+		/* Prepare additional node for reporting inssufficient memory for IQ samples
+		 * reports.
+		 */
+		err = lll_df_iq_report_no_resources_prepare(lll);
+		if (!err) {
+			err = lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len,
+							cfg->ant_ids, lll_aux->chan,
+							CTE_INFO_IN_PAYLOAD, lll_aux->phy);
+			if (err) {
+				lll->is_cte_incomplete = true;
+			}
+		} else {
+			lll->is_cte_incomplete = true;
+		}
 		cfg->cte_count = 0;
+	} else {
+		/* If CTE reception is disabled, release additional node allocated to report
+		 * insufficient memory for IQ samples.
+		 */
+		iq_report_incomplete_release_put(lll);
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 	radio_switch_complete_and_disable();
@@ -226,7 +247,7 @@ enum sync_status lll_sync_cte_is_allowed(uint8_t cte_type_mask, uint8_t filter_p
 	}
 
 	if (!cte_ok) {
-		return filter_policy ? SYNC_STAT_READY_OR_CONT_SCAN : SYNC_STAT_TERM;
+		return filter_policy ? SYNC_STAT_CONT_SCAN : SYNC_STAT_TERM;
 	}
 
 	return SYNC_STAT_ALLOWED;
@@ -279,13 +300,39 @@ static int create_prepare_cb(struct lll_prepare_param *p)
 	if (false) {
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
 	} else if (cfg->is_enabled) {
+		int err;
 
-		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD, lll->phy);
+		/* In case of call in create_prepare_cb, new sync event starts hence discard
+		 * previous incomplete state.
+		 */
+		lll->is_cte_incomplete = false;
+
+		/* Prepare additional node for reporting inssufficient IQ report nodes issue */
+		err = lll_df_iq_report_no_resources_prepare(lll);
+		if (!err) {
+			err = lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len,
+							cfg->ant_ids, chan_idx, CTE_INFO_IN_PAYLOAD,
+							lll->phy);
+			if (err) {
+				lll->is_cte_incomplete = true;
+			}
+		} else {
+			lll->is_cte_incomplete = true;
+		}
+
 		cfg->cte_count = 0;
+	} else {
+		/* If CTE reception is disabled, release additional node allocated to report
+		 * insufficient memory for IQ samples.
+		 */
+		iq_report_incomplete_release_put(lll);
+#else
+	} else {
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-	} else if (IS_ENABLED(CONFIG_BT_CTLR_DF_SUPPORT)) {
-		radio_df_cte_inline_set_enabled(false);
+		if (IS_ENABLED(CONFIG_BT_CTLR_DF_SUPPORT)) {
+			/* Disable CTE reception and sampling in Radio */
+			radio_df_cte_inline_set_enabled(false);
+		}
 	}
 
 	radio_switch_complete_and_disable();
@@ -339,9 +386,31 @@ static int prepare_cb(struct lll_prepare_param *p)
 	cfg = lll_df_sync_cfg_latest_get(&lll->df_cfg, NULL);
 
 	if (cfg->is_enabled) {
-		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD, lll->phy);
+		int err;
+
+		/* In case of call in prepare, new sync event starts hence discard previous
+		 * incomplete state.
+		 */
+		lll->is_cte_incomplete = false;
+
+		/* Prepare additional node for reporting inssufficient IQ report nodes issue */
+		err = lll_df_iq_report_no_resources_prepare(lll);
+		if (!err) {
+			err = lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len,
+							cfg->ant_ids, chan_idx, CTE_INFO_IN_PAYLOAD,
+							lll->phy);
+			if (err) {
+				lll->is_cte_incomplete = true;
+			}
+		} else {
+			lll->is_cte_incomplete = true;
+		}
 		cfg->cte_count = 0;
+	} else {
+		/* If CTE reception is disabled, release additional node allocated to report
+		 * insufficient memory for IQ samples.
+		 */
+		iq_report_incomplete_release_put(lll);
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
@@ -467,15 +536,60 @@ static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb)
 
 	/* Different radio event overlap */
 	if (next != curr) {
+		struct lll_scan_aux *lll_aux;
 		struct lll_scan *lll;
 
 		lll = ull_scan_lll_is_valid_get(next);
-		if (!lll) {
-			/* Abort current event as next event is not a scan
-			 * event.
+		if (lll) {
+			/* Do not abort current periodic sync event as next
+			 * event is a scan event.
+			 */
+			return 0;
+		}
+
+		lll_aux = ull_scan_aux_lll_is_valid_get(next);
+		if (!IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC_SKIP_ON_SCAN_AUX) &&
+		    lll_aux) {
+			/* Do not abort current periodic sync event as next
+			 * event is a scan aux event.
+			 */
+			return 0;
+		}
+
+#if defined(CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN)
+		struct lll_sync *lll_sync_next;
+		struct lll_sync *lll_sync_curr;
+
+		lll_sync_next = ull_sync_lll_is_valid_get(next);
+		if (!lll_sync_next) {
+			/* Abort current event as next event is not a
+			 * scan and not a scan aux event.
 			 */
 			return -ECANCELED;
 		}
+
+		lll_sync_curr = curr;
+		if (lll_sync_curr->abort_count < lll_sync_next->abort_count) {
+			if (lll_sync_curr->abort_count < UINT8_MAX) {
+				lll_sync_curr->abort_count++;
+			}
+
+			/* Abort current event as next event has higher abort
+			 * count.
+			 */
+			return -ECANCELED;
+		}
+
+		if (lll_sync_next->abort_count < UINT8_MAX) {
+			lll_sync_next->abort_count++;
+		}
+
+#else /* !CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN */
+		/* Abort current event as next event is not a
+		 * scan and not a scan aux event.
+		 */
+		return -ECANCELED;
+#endif /* !CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN */
 	}
 
 	/* Do not abort if current periodic sync event overlaps next interval
@@ -571,8 +685,27 @@ static void isr_aux_setup(void *param)
 	cfg = lll_df_sync_cfg_latest_get(&lll->df_cfg, NULL);
 
 	if (cfg->is_enabled && is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
-		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  aux_ptr->chan_idx, CTE_INFO_IN_PAYLOAD, aux_ptr->phy);
+		int err;
+
+		/* Prepare additional node for reporting inssufficient memory for IQ samples
+		 * reports.
+		 */
+		err = lll_df_iq_report_no_resources_prepare(lll);
+		if (!err) {
+			err = lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len,
+							cfg->ant_ids, aux_ptr->chan_idx,
+							CTE_INFO_IN_PAYLOAD, aux_ptr->phy);
+			if (err) {
+				lll->is_cte_incomplete = true;
+			}
+		} else {
+			lll->is_cte_incomplete = true;
+		}
+	} else if (!cfg->is_enabled) {
+		/* If CTE reception is disabled, release additional node allocated to report
+		 * insufficient memory for IQ samples.
+		 */
+		iq_report_incomplete_release_put(lll);
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 	radio_switch_complete_and_disable();
@@ -644,8 +777,17 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok,
 		 * - allocating an extra node_rx for periodic report incomplete
 		 * - a buffer for receiving data in a connection
 		 * - a buffer for receiving empty PDU
+		 *
+		 * If this is a reception of chained PDU, node_type is
+		 * NODE_RX_TYPE_EXT_AUX_REPORT, then there is no need to reserve
+		 * again a node_rx for periodic report incomplete.
 		 */
-		node_rx = ull_pdu_rx_alloc_peek(4);
+		if (node_type != NODE_RX_TYPE_EXT_AUX_REPORT) {
+			node_rx = ull_pdu_rx_alloc_peek(4);
+		} else {
+			node_rx = ull_pdu_rx_alloc_peek(3);
+		}
+
 		if (node_rx) {
 			struct node_rx_ftr *ftr;
 			struct pdu_adv *pdu;
@@ -681,7 +823,6 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok,
 				if (node_type != NODE_RX_TYPE_EXT_AUX_REPORT) {
 					lll->is_aux_sched = 1U;
 				}
-
 				err = -EBUSY;
 			} else {
 				err = 0;
@@ -689,29 +830,37 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok,
 
 			ull_rx_put(node_rx->hdr.link, node_rx);
 
-			sched = true;
-		} else if (node_type == NODE_RX_TYPE_EXT_AUX_REPORT) {
-			err = -ENOMEM;
-		} else {
-			err = 0;
-		}
-
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
-		if (cte_ready) {
-			/* Retunred value is not checked because it does not matter if there
-			 * is a IQ report to be send towards ULL. There is always periodic sync
-			 * report to be send.
-			 */
-			(void)create_iq_report(lll, rssi_ready, BT_HCI_LE_CTE_CRC_OK);
-			sched = true;
-		}
+			if (cte_ready) {
+				/* If there is a periodic advertising report generate  IQ data
+				 * report with valid packet_status if there were free nodes for
+				 * that. Or report insufficient resources for IQ data report.
+				 *
+				 * Retunred value is not checked because it does not matter if there
+				 * is a IQ report to be send towards ULL. There is always periodic
+				 * sync report to be send.
+				 */
+				(void)iq_report_create_put(lll, rssi_ready, BT_HCI_LE_CTE_CRC_OK);
+			}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
+			sched = true;
+		} else {
+			if (node_type == NODE_RX_TYPE_EXT_AUX_REPORT) {
+				err = -ENOMEM;
+			} else {
+				err = 0;
+			}
+		}
 	} else {
 #if defined(CONFIG_BT_CTLR_DF_SAMPLE_CTE_FOR_PDU_WITH_BAD_CRC)
-		if (cte_ready) {
-			err = create_iq_report(lll, rssi_ready,
-					       BT_HCI_LE_CTE_CRC_ERR_CTE_BASED_TIME);
+		/* In case of reception of chained PDUs IQ samples report for a PDU with wrong
+		 * CRC is handled by caller. It has to be that way to be sure the IQ report
+		 * follows possible periodic advertising report.
+		 */
+		if (cte_ready && node_type != NODE_RX_TYPE_EXT_AUX_REPORT) {
+			err = iq_report_create_put(lll, rssi_ready,
+						   BT_HCI_LE_CTE_CRC_ERR_CTE_BASED_TIME);
 			if (!err) {
 				sched = true;
 			}
@@ -770,6 +919,10 @@ static void isr_rx_adv_sync_estab(void *param)
 	if (!trx_done) {
 		/* TODO: Combine the early exit with above if-then-else block
 		 */
+#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
+		LL_ASSERT(!lll->node_cte_incomplete);
+#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
+
 		goto isr_rx_done;
 	}
 
@@ -810,11 +963,10 @@ static void isr_rx_adv_sync_estab(void *param)
 			ull_rx_sched();
 		}
 	}
-
 isr_rx_done:
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING) && \
 	defined(CONFIG_BT_CTLR_CTEINLINE_SUPPORT)
-	isr_rx_done_cleanup(lll, crc_ok, sync_ok == SYNC_STAT_TERM);
+	isr_rx_done_cleanup(lll, crc_ok, sync_ok != SYNC_STAT_ALLOWED);
 #else
 	isr_rx_done_cleanup(lll, crc_ok, false);
 #endif /* CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING && CONFIG_BT_CTLR_CTEINLINE_SUPPORT */
@@ -869,8 +1021,8 @@ static void isr_rx_adv_sync(void *param)
 	 * affect synchronization even when new CTE type is not allowed by sync parameters.
 	 * Hence the SYNC_STAT_READY is set.
 	 */
-	err = isr_rx(lll, NODE_RX_TYPE_SYNC_REPORT, crc_ok, phy_flags_rx,
-		     cte_ready, rssi_ready, SYNC_STAT_READY_OR_CONT_SCAN);
+	err = isr_rx(lll, NODE_RX_TYPE_SYNC_REPORT, crc_ok, phy_flags_rx, cte_ready, rssi_ready,
+		     SYNC_STAT_READY);
 	if (err == -EBUSY) {
 		return;
 	}
@@ -899,6 +1051,8 @@ static void isr_rx_aux_chain(void *param)
 		 */
 		lll_isr_status_reset();
 
+		rssi_ready = 0U;
+		cte_ready = 0U;
 		crc_ok =  0U;
 		err = 0;
 
@@ -928,7 +1082,6 @@ static void isr_rx_aux_chain(void *param)
 	if (!trx_done) {
 		/* TODO: Combine the early exit with above if-then-else block
 		 */
-
 		err = 0;
 
 		goto isr_rx_aux_chain_done;
@@ -938,9 +1091,8 @@ static void isr_rx_aux_chain(void *param)
 	 * affect synchronization even when new CTE type is not allowed by sync parameters.
 	 * Hence the SYNC_STAT_READY is set.
 	 */
-	err = isr_rx(lll, NODE_RX_TYPE_EXT_AUX_REPORT, crc_ok, phy_flags_rx,
-		     cte_ready, rssi_ready, SYNC_STAT_READY_OR_CONT_SCAN);
-
+	err = isr_rx(lll, NODE_RX_TYPE_EXT_AUX_REPORT, crc_ok, phy_flags_rx, cte_ready, rssi_ready,
+		     SYNC_STAT_READY);
 	if (err == -EBUSY) {
 		return;
 	}
@@ -961,6 +1113,23 @@ isr_rx_aux_chain_done:
 		node_rx->hdr.rx_ftr.aux_failed = 1U;
 
 		ull_rx_put(node_rx->hdr.link, node_rx);
+
+		if (!crc_ok) {
+#if defined(CONFIG_BT_CTLR_DF_SAMPLE_CTE_FOR_PDU_WITH_BAD_CRC)
+			if (cte_ready) {
+				(void)iq_report_create_put(lll, rssi_ready,
+							   BT_HCI_LE_CTE_CRC_ERR_CTE_BASED_TIME);
+			}
+#endif /* CONFIG_BT_CTLR_DF_SAMPLE_CTE_FOR_PDU_WITH_BAD_CRC */
+		} else {
+#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
+			/* Report insufficient resurces for IQ data report and relese additional
+			 * noder_rx_iq_data stored in lll_sync object, to vaoid buffers leakage.
+			 */
+			iq_report_incomplete_create_put(lll);
+#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
+		}
+
 		ull_rx_sched();
 	}
 
@@ -997,6 +1166,14 @@ static void isr_rx_done_cleanup(struct lll_sync *lll, uint8_t crc_ok, bool sync_
 		/* Reset window widening, as anchor point sync-ed */
 		lll->window_widening_event_us = 0U;
 		lll->window_size_event_us = 0U;
+
+#if defined(CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN)
+		/* Reset LLL abort count as LLL event is gracefully done and
+		 * was not aborted by any other event when current event could
+		 * have been using unreserved time space.
+		 */
+		lll->abort_count = 0U;
+#endif /* CONFIG_BT_CTLR_SCAN_AUX_SYNC_RESERVE_MIN */
 	}
 
 	lll_isr_cleanup(lll);
@@ -1038,51 +1215,156 @@ static void isr_done(void *param)
 }
 
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
-static inline int create_iq_report(struct lll_sync *lll, uint8_t rssi_ready,
-				   uint8_t packet_status)
+static void iq_report_create(struct lll_sync *lll, uint8_t rssi_ready, uint8_t packet_status,
+			     uint8_t slot_durations, struct node_rx_iq_report *iq_report)
 {
-	struct node_rx_iq_report *iq_report;
-	struct lll_df_sync_cfg *cfg;
 	struct node_rx_ftr *ftr;
 	uint8_t cte_info;
 	uint8_t ant;
 
+	cte_info = radio_df_cte_status_get();
+	ant = radio_df_pdu_antenna_switch_pattern_get();
+
+	iq_report->hdr.type = NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT;
+	iq_report->sample_count = radio_df_iq_samples_amount_get();
+	iq_report->packet_status = packet_status;
+	iq_report->rssi_ant_id = ant;
+	iq_report->cte_info = *(struct pdu_cte_info *)&cte_info;
+	iq_report->local_slot_durations = slot_durations;
+	/* Event counter is updated to next value during event preparation, hence
+	 * it has to be subtracted to store actual event counter value.
+	 */
+	iq_report->event_counter = lll->event_counter - 1;
+
+	ftr = &iq_report->hdr.rx_ftr;
+	ftr->param = lll;
+	ftr->rssi =
+		((rssi_ready) ? radio_rssi_get() : BT_HCI_LE_RSSI_NOT_AVAILABLE);
+}
+
+static void iq_report_incomplete_create(struct lll_sync *lll, struct node_rx_iq_report *iq_report)
+{
+	struct node_rx_ftr *ftr;
+
+	iq_report->hdr.type = NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT;
+	iq_report->sample_count = 0;
+	iq_report->packet_status = BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES;
+	/* Event counter is updated to next value during event preparation,
+	 * hence it has to be subtracted to store actual event counter
+	 * value.
+	 */
+	iq_report->event_counter = lll->event_counter - 1;
+	/* The PDU antenna is set in configuration, hence it is always
+	 * available. BT 5.3 Core Spec. does not say if this field
+	 * may be invalid in case of insufficient resources.
+	 */
+	iq_report->rssi_ant_id = radio_df_pdu_antenna_switch_pattern_get();
+	/* Accodring to BT 5.3, Vol 4, Part E, section 7.7.65.21 below
+	 * fields have invalid values in case of insufficient resources.
+	 */
+	iq_report->cte_info =
+		(struct pdu_cte_info){.time = 0, .rfu = 0, .type = 0};
+	iq_report->local_slot_durations = 0;
+
+	ftr = &iq_report->hdr.rx_ftr;
+	ftr->param = lll;
+
+	ftr->rssi = BT_HCI_LE_RSSI_NOT_AVAILABLE;
+	ftr->extra = NULL;
+}
+
+static int iq_report_create_put(struct lll_sync *lll, uint8_t rssi_ready, uint8_t packet_status)
+{
+	struct node_rx_iq_report *iq_report;
+	struct lll_df_sync_cfg *cfg;
+	int err;
+
 	cfg = lll_df_sync_cfg_curr_get(&lll->df_cfg);
 
 	if (cfg->is_enabled) {
-		if (is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
-			cte_info = radio_df_cte_status_get();
-			ant = radio_df_pdu_antenna_switch_pattern_get();
+		if (!lll->is_cte_incomplete &&
+		    is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
 			iq_report = ull_df_iq_report_alloc();
 			LL_ASSERT(iq_report);
 
-			iq_report->hdr.type = NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT;
-			iq_report->sample_count = radio_df_iq_samples_amount_get();
-			iq_report->packet_status = packet_status;
-			iq_report->rssi_ant_id = ant;
-			iq_report->cte_info = *(struct pdu_cte_info *)&cte_info;
-			iq_report->local_slot_durations = cfg->slot_durations;
-			/* Event counter is updated to next value during event preparation, hence
-			 * it has to be subtracted to store actual event counter value.
+			iq_report_create(lll, rssi_ready, packet_status,
+					 cfg->slot_durations, iq_report);
+			err = 0;
+		} else if (lll->is_cte_incomplete && is_max_cte_reached(cfg->max_cte_count,
+									 cfg->cte_count)) {
+			iq_report = lll->node_cte_incomplete;
+
+			/* Reception of chained PDUs may be still in progress. Do not report
+			 * insufficient resources multiple times.
 			 */
-			iq_report->event_counter = lll->event_counter - 1;
+			if (iq_report) {
+				iq_report_incomplete_create(lll, iq_report);
+				lll->node_cte_incomplete = NULL;
 
-			ftr = &iq_report->hdr.rx_ftr;
-			ftr->param = lll;
-			ftr->rssi =
-				((rssi_ready) ? radio_rssi_get() : BT_HCI_LE_RSSI_NOT_AVAILABLE);
+				/* Report ready to be send to ULL */
+				err = 0;
+			} else {
+				/* Incomplete CTE was already reported */
+				err = -ENODATA;
+			}
+		} else {
+			err = -ENODATA;
+		}
+	} else {
+		err = -ENODATA;
+	}
 
-			cfg->cte_count += 1U;
+	if (!err) {
+		ull_rx_put(iq_report->hdr.link, iq_report);
 
+		cfg->cte_count += 1U;
+	}
+
+	return err;
+}
+
+static int iq_report_incomplete_create_put(struct lll_sync *lll)
+{
+	struct lll_df_sync_cfg *cfg;
+
+	cfg = lll_df_sync_cfg_curr_get(&lll->df_cfg);
+
+	if (cfg->is_enabled) {
+		struct node_rx_iq_report *iq_report;
+
+		iq_report = lll->node_cte_incomplete;
+
+		/* Reception of chained PDUs may be still in progress. Do not report
+		 * insufficient resources multiple times.
+		 */
+		if (iq_report) {
+			iq_report_incomplete_create(lll, iq_report);
+
+			lll->node_cte_incomplete = NULL;
 			ull_rx_put(iq_report->hdr.link, iq_report);
 
 			return 0;
+		} else {
+			/* Incomplete CTE was already reported */
+			return -ENODATA;
 		}
+
 	}
 
 	return -ENODATA;
 }
 
+static void iq_report_incomplete_release_put(struct lll_sync *lll)
+{
+	if (lll->node_cte_incomplete) {
+		struct node_rx_iq_report *iq_report = lll->node_cte_incomplete;
+
+		iq_report->hdr.type = NODE_RX_TYPE_IQ_SAMPLE_REPORT_LLL_RELEASE;
+
+		ull_rx_put(iq_report->hdr.link, iq_report);
+		lll->node_cte_incomplete = NULL;
+	}
+}
 static bool is_max_cte_reached(uint8_t max_cte_count, uint8_t cte_count)
 {
 	return max_cte_count == BT_HCI_LE_SAMPLE_CTE_ALL || cte_count < max_cte_count;

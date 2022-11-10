@@ -15,11 +15,11 @@
  * The hardware accelerator mechanism is shared by four PS/2 channels.
  */
 
-#include <drivers/clock_control.h>
-#include <drivers/ps2.h>
-#include <dt-bindings/clock/npcx_clock.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/ps2.h>
+#include <zephyr/dt-bindings/clock/npcx_clock.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ps2_npcx_ctrl, CONFIG_PS2_LOG_LEVEL);
 
 #define NPCX_PS2_CH_COUNT 4
@@ -290,8 +290,9 @@ static void ps2_npcx_ctrl_isr(const struct device *dev)
 
 				LOG_DBG("Recv:0x%02x", data_in);
 				callback = data->callback_isr[active_ch];
-				if (callback != NULL)
+				if (callback != NULL) {
 					callback(dev, data_in);
+				}
 			}
 		}
 

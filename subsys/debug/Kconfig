@@ -99,6 +99,13 @@ config DEBUG
 	  only disables optimization, more debugging variants can be selected
 	  from here to allow more debugging.
 
+config GPROF
+	bool "Generate profiling information"
+	depends on ARCH_POSIX
+	help
+	  Generate call graph profile data for the application that can be
+	  analyzed with gprof
+
 config ASAN
 	bool "Build with address sanitizer"
 	depends on ARCH_POSIX
@@ -361,13 +368,6 @@ config GDBSTUB_SERIAL_BACKEND
 	  Use serial as backend for GDB
 
 endchoice
-
-config GDBSTUB_SERIAL_BACKEND_NAME
-	string "Serial Name"
-	depends on GDBSTUB_SERIAL_BACKEND
-	default "UART_0"
-	help
-	  Use serial as backend for GDB
 
 config GDBSTUB_BUF_SZ
 	int "GDB backend send/receive buffer size (in bytes)"

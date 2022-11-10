@@ -5,8 +5,8 @@
  */
 
 #include <arm/armv8-m.dtsi>
-#include <dt-bindings/clock/mcux_lpc_syscon_clock.h>
-#include <dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 #include <mem.h>
 
 / {
@@ -33,32 +33,31 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	/* lpc55_0x Memory configurations:
+	 *
+	 * LPC5502:  RAMX: 16K, SRAM0: 32K
+	 * LPC55x04: RAMX: 16K, SRAM0: 32K, SRAM1: 16K
+	 * LPC55x06: RAMX: 16K, SRAM0: 32K, SRAM1: 16K, SRAM2: 16K, SRAM3: 16k
+	 */
 	sramx: memory@4000000 {
 		compatible = "mmio-sram";
-		reg = <0x4000000 DT_SIZE_K(16)>;
+		reg = <0x04000000 DT_SIZE_K(16)>;
 	};
-
 	sram0: memory@20000000 {
 		compatible = "mmio-sram";
 		reg = <0x20000000 DT_SIZE_K(32)>;
 	};
-
 	sram1: memory@20008000 {
-		compatible = "zephyr,memory-region","mmio-sram";
+		compatible = "mmio-sram";
 		reg = <0x20008000 DT_SIZE_K(16)>;
-		zephyr,memory-region = "SRAM1";
 	};
-
-	sram2: memory@2000c000 {
-		compatible = "zephyr,memory-region","mmio-sram";
-		reg = <0x2000c000 DT_SIZE_K(16)>;
-		zephyr,memory-region = "SRAM2";
+	sram2: memory@2000C000 {
+		compatible = "mmio-sram";
+		reg = <0x2000C000 DT_SIZE_K(16)>;
 	};
-
 	sram3: memory@20010000 {
-		compatible = "zephyr,memory-region","mmio-sram";
+		compatible = "mmio-sram";
 		reg = <0x20010000 DT_SIZE_K(16)>;
-		zephyr,memory-region = "SRAM3";
 	};
 };
 
@@ -69,20 +68,17 @@
 	syscon: syscon@0 {
 		compatible = "nxp,lpc-syscon";
 		reg = <0x0 0x4000>;
-		label = "SYSCON";
 		#clock-cells = <1>;
 	};
 
 	iap: flash-controller@34000 {
 		compatible = "nxp,lpc-iap";
-		label = "FLASH_IAP";
 		reg = <0x34000 0x18>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
 		flash0: flash@0 {
 			compatible = "soc-nv-flash";
-			label = "MCUX_FLASH";
 			reg = <0x0 DT_SIZE_K(246)>;
 			erase-block-size = <512>;
 			write-block-size = <512>;
@@ -96,7 +92,7 @@
 
 		uuid: flash@9fc70 {
 			compatible = "nxp,lpc-uid";
-			reg = <0x9fc70 0x10>;
+			reg = <0x3fc70 0x10>;
 		};
 
 		boot_rom: flash@3000000 {
@@ -111,6 +107,9 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0x0 0x1000 0x100>;
+		pinctrl: pinctrl {
+			compatible = "nxp,lpc-iocon-pinctrl";
+		};
 		pio0: pio0@0 {
 			compatible = "nxp,lpc-iocon-pio";
 			reg = <0x0 0x80>;
@@ -125,7 +124,6 @@
 		compatible = "nxp,lpc-gpio";
 		reg = <0x8c000 0x2488>;
 		interrupts = <4 2>,<5 2>,<6 2>,<7 2>;
-		label = "GPIO_0";
 		gpio-controller;
 		#gpio-cells = <2>;
 		port = <0>;
@@ -135,7 +133,6 @@
 		compatible = "nxp,lpc-gpio";
 		reg = <0x8c000 0x2488>;
 		interrupts = <32 2>,<33 2>,<34 2>,<35 2>;
-		label = "GPIO_1";
 		gpio-controller;
 		#gpio-cells = <2>;
 		port = <1>;
@@ -146,7 +143,6 @@
 		reg = <0x86000 0x1000>;
 		interrupts = <14 0>;
 		clocks = <&syscon MCUX_FLEXCOMM0_CLK>;
-		label = "FLEXCOMM_0";
 		status = "disabled";
 	};
 
@@ -155,7 +151,6 @@
 		reg = <0x87000 0x1000>;
 		interrupts = <15 0>;
 		clocks = <&syscon MCUX_FLEXCOMM1_CLK>;
-		label = "FLEXCOMM_1";
 		status = "disabled";
 	};
 
@@ -164,7 +159,6 @@
 		reg = <0x88000 0x1000>;
 		interrupts = <16 0>;
 		clocks = <&syscon MCUX_FLEXCOMM2_CLK>;
-		label = "FLEXCOMM_2";
 		status = "disabled";
 	};
 
@@ -173,7 +167,6 @@
 		reg = <0x89000 0x1000>;
 		interrupts = <17 0>;
 		clocks = <&syscon MCUX_FLEXCOMM3_CLK>;
-		label = "FLEXCOMM_3";
 		status = "disabled";
 	};
 
@@ -182,7 +175,6 @@
 		reg = <0x8a000 0x1000>;
 		interrupts = <18 0>;
 		clocks = <&syscon MCUX_FLEXCOMM4_CLK>;
-		label = "FLEXCOMM_4";
 		status = "disabled";
 	};
 
@@ -191,7 +183,6 @@
 		reg = <0x96000 0x1000>;
 		interrupts = <19 0>;
 		clocks = <&syscon MCUX_FLEXCOMM5_CLK>;
-		label = "FLEXCOMM_5";
 		status = "disabled";
 	};
 
@@ -200,7 +191,6 @@
 		reg = <0x97000 0x1000>;
 		interrupts = <20 0>;
 		clocks = <&syscon MCUX_FLEXCOMM6_CLK>;
-		label = "FLEXCOMM_6";
 		status = "disabled";
 	};
 
@@ -209,7 +199,6 @@
 		reg = <0x98000 0x1000>;
 		interrupts = <21 0>;
 		clocks = <&syscon MCUX_FLEXCOMM7_CLK>;
-		label = "FLEXCOMM_7";
 		status = "disabled";
 	};
 
@@ -218,7 +207,6 @@
 		reg = <0x9f000 0x1000>;
 		interrupts = <59 0>;
 		clocks = <&syscon MCUX_HS_SPI_CLK>;
-		label = "HS_LSPI";
 		status = "disabled";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -228,7 +216,6 @@
 		compatible = "nxp,lpc-rng";
 		reg = <0x3a000 0x1000>;
 		status = "okay";
-		label = "RNG";
 	};
 };
 

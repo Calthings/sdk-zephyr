@@ -7,11 +7,11 @@
 #define DT_DRV_COMPAT opencores_spi_simple
 
 #define LOG_LEVEL CONFIG_SPI_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(spi_oc_simple);
 
-#include <sys/sys_io.h>
-#include <drivers/spi.h>
+#include <zephyr/sys/sys_io.h>
+#include <zephyr/drivers/spi.h>
 
 #include "spi_context.h"
 #include "spi_oc_simple.h"
@@ -71,11 +71,12 @@ static int spi_oc_simple_configure(const struct spi_oc_simple_cfg *info,
 	}
 
 	/* Set clock divider */
-	for (i = 0; i < 12; i++)
+	for (i = 0; i < 12; i++) {
 		if ((config->frequency << (i + 1)) >
 		    CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC) {
 			break;
 		}
+	}
 
 	sys_write8((DIVIDERS[i] >> 4) & 0x3, SPI_OC_SIMPLE_SPER(info));
 	spcr |= (DIVIDERS[i] & 0x3);

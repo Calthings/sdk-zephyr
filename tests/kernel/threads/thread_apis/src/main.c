@@ -13,9 +13,9 @@
  * @}
  */
 
-#include <ztest.h>
-#include <kernel_structs.h>
-#include <kernel.h>
+#include <zephyr/ztest.h>
+#include <zephyr/kernel_structs.h>
+#include <zephyr/kernel.h>
 #include <kernel_internal.h>
 #include <string.h>
 #include <ksched.h>

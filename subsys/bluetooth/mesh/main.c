@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <stdbool.h>
 #include <errno.h>
 
-#include <net/buf.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/uuid.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/uuid.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG)
 #define LOG_MODULE_NAME bt_mesh_main
@@ -109,6 +109,8 @@ int bt_mesh_provision(const uint8_t net_key[16], uint16_t net_idx,
 		atomic_clear_bit(bt_mesh.flags, BT_MESH_VALID);
 		return err;
 	}
+
+	bt_mesh_net_settings_commit();
 
 	bt_mesh.seq = 0U;
 
@@ -227,6 +229,10 @@ void bt_mesh_reset(void)
 	bt_mesh_beacon_disable();
 
 	bt_mesh_comp_unprovision();
+
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		bt_mesh_settings_store_pending();
+	}
 
 	if (IS_ENABLED(CONFIG_BT_MESH_PROV)) {
 		bt_mesh_prov_reset();

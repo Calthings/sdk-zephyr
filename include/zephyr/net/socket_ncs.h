@@ -27,21 +27,12 @@ extern "C" {
 
 /* NCS specific TLS options */
 
-/** Socket option to control TLS session caching. Accepted values:
- *  - 0 - Disabled.
- *  - 1 - Enabled.
- */
-#define TLS_SESSION_CACHE 10
-/** Socket option to purge session cache immediately.
- *  This option accepts any value.
- */
-#define TLS_SESSION_CACHE_PURGE 11
 /** Socket option to set DTLS handshake timeout, specifically for nRF sockets.
  *  The option accepts an integer, indicating the total handshake timeout,
  *  including retransmissions, in seconds.
  *  Accepted values for the option are: 1, 3, 7, 15, 31, 63, 123.
  */
-#define TLS_DTLS_HANDSHAKE_TIMEO 12
+#define TLS_DTLS_HANDSHAKE_TIMEO 14
 
 /* Valid values for TLS_SESSION_CACHE option */
 #define TLS_SESSION_CACHE_DISABLED 0 /**< Disable TLS session caching. */
@@ -65,13 +56,13 @@ extern "C" {
 /** sockopt: disable IPv6 ICMP replies */
 #define SO_IPV6_ECHO_REPLY 32
 /** sockopt: Release Assistance Indication feature: This will indicate that the
- *  next call to send/sendto will be the last one for some time.
- */
-#define SO_RAI_LAST 50
-/** sockopt: Release Assistance Indication feature: This will indicate that the
  *  application will not send any more data.
  */
-#define SO_RAI_NO_DATA 51
+#define SO_RAI_NO_DATA 50
+/** sockopt: Release Assistance Indication feature: This will indicate that the
+ *  next call to send/sendto will be the last one for some time.
+ */
+#define SO_RAI_LAST 51
 /** sockopt: Release Assistance Indication feature: This will indicate that
  *  after the next call to send/sendto, the application is expecting to receive
  *  one more data packet before this socket will not be used again for some time.

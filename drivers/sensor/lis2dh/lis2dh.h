@@ -7,23 +7,23 @@
 #ifndef ZEPHYR_DRIVERS_SENSOR_LIS2DH_LIS2DH_H_
 #define ZEPHYR_DRIVERS_SENSOR_LIS2DH_LIS2DH_H_
 
-#include <kernel.h>
-#include <device.h>
-#include <sys/util.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/sys/util.h>
 #include <stdint.h>
-#include <drivers/gpio.h>
-#include <drivers/sensor.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/sensor.h>
 #include <string.h>
 
 #define LIS2DH_REG_WAI			0x0f
 #define LIS2DH_CHIP_ID			0x33
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
-#include <drivers/spi.h>
+#include <zephyr/drivers/spi.h>
 #endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
-#include <drivers/i2c.h>
+#include <zephyr/drivers/i2c.h>
 #endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c) */
 
 #define LIS2DH_AUTOINCREMENT_ADDR	BIT(7)
@@ -182,7 +182,7 @@ union lis2dh_sample {
 
 union lis2dh_bus_cfg {
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
-	uint16_t i2c_slv_addr;
+	struct i2c_dt_spec i2c;
 #endif
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
@@ -198,7 +198,6 @@ struct temperature {
 };
 
 struct lis2dh_config {
-	const char *bus_name;
 	int (*bus_init)(const struct device *dev);
 	const union lis2dh_bus_cfg bus_cfg;
 #ifdef CONFIG_LIS2DH_TRIGGER

@@ -46,6 +46,8 @@ source "drivers/counter/Kconfig.cmos"
 
 source "drivers/counter/Kconfig.mcux_gpt"
 
+source "drivers/counter/Kconfig.mcux_qtmr"
+
 source "drivers/counter/Kconfig.mcux_snvs"
 
 source "drivers/counter/Kconfig.xec"
@@ -61,6 +63,8 @@ source "drivers/counter/Kconfig.mcux_pit"
 source "drivers/counter/Kconfig.xlnx"
 
 source "drivers/counter/Kconfig.esp32"
+
+source "drivers/counter/Kconfig.esp32_rtc"
 
 source "drivers/counter/Kconfig.mcp7940n"
 

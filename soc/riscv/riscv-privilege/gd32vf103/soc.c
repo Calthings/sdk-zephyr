@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <init.h>
+#include <zephyr/init.h>
+
+#include <gd32vf103.h>
 
 static int gigadevice_gd32v_soc_init(const struct device *dev)
 {

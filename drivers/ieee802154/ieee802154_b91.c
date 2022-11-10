@@ -16,13 +16,13 @@
 #define LOG_LEVEL LOG_LEVEL_NONE
 #endif
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-#include <random/rand32.h>
-#include <net/ieee802154_radio.h>
+#include <zephyr/random/rand32.h>
+#include <zephyr/net/ieee802154_radio.h>
 #if defined(CONFIG_NET_L2_OPENTHREAD)
-#include <net/openthread.h>
+#include <zephyr/net/openthread.h>
 #endif
 
 #include "ieee802154_b91.h"
@@ -613,14 +613,11 @@ static struct ieee802154_radio_api b91_radio_api = {
 
 /* IEEE802154 driver registration */
 #if defined(CONFIG_NET_L2_IEEE802154) || defined(CONFIG_NET_L2_OPENTHREAD)
-NET_DEVICE_INIT(b91_154_radio, CONFIG_IEEE802154_B91_DRV_NAME,
-		b91_init, NULL, &data, NULL,
-		CONFIG_IEEE802154_B91_INIT_PRIO,
-		&b91_radio_api, L2,
-		L2_CTX_TYPE, MTU);
+NET_DEVICE_DT_INST_DEFINE(0, b91_init, NULL, &data, NULL,
+			  CONFIG_IEEE802154_B91_INIT_PRIO,
+			  &b91_radio_api, L2, L2_CTX_TYPE, MTU);
 #else
-DEVICE_DEFINE(b91_154_radio, CONFIG_IEEE802154_B91_DRV_NAME,
-	      b91_init, NULL, &data, NULL,
-	      POST_KERNEL, CONFIG_IEEE802154_B91_INIT_PRIO,
-	      &b91_radio_api);
+DEVICE_DT_INST_DEFINE(0, b91_init, NULL, &data, NULL,
+		      POST_KERNEL, CONFIG_IEEE802154_B91_INIT_PRIO,
+		      &b91_radio_api);
 #endif

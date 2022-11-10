@@ -7,15 +7,15 @@
 #define DT_DRV_COMPAT nxp_kinetis_i2c
 
 #include <errno.h>
-#include <drivers/i2c.h>
+#include <zephyr/drivers/i2c.h>
 #include <soc.h>
 #include <fsl_i2c.h>
 #include <fsl_clock.h>
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_mcux);
 
 #include "i2c-priv.h"
@@ -47,7 +47,7 @@ static int i2c_mcux_configure(const struct device *dev,
 	uint32_t clock_freq;
 	uint32_t baudrate;
 
-	if (!(I2C_MODE_MASTER & dev_config_raw)) {
+	if (!(I2C_MODE_CONTROLLER & dev_config_raw)) {
 		return -EINVAL;
 	}
 
@@ -207,7 +207,7 @@ static int i2c_mcux_init(const struct device *dev)
 		return error;
 	}
 
-	error = i2c_mcux_configure(dev, I2C_MODE_MASTER | bitrate_cfg);
+	error = i2c_mcux_configure(dev, I2C_MODE_CONTROLLER | bitrate_cfg);
 	if (error) {
 		return error;
 	}

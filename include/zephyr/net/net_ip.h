@@ -23,11 +23,11 @@
 #include <string.h>
 #include <zephyr/types.h>
 #include <stdbool.h>
-#include <sys/util.h>
-#include <sys/byteorder.h>
-#include <toolchain.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/toolchain.h>
 
-#include <net/net_linkaddr.h>
+#include <zephyr/net/net_linkaddr.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -299,6 +299,9 @@ struct cmsghdr {
 #define PACKET_OUTGOING     4     /* Originated by us */
 #define PACKET_LOOPBACK     5
 #define PACKET_FASTROUTE    6
+
+/* ARP protocol HARDWARE identifiers. */
+#define ARPHRD_ETHER 1
 
 /* Note: These macros are defined in a specific order.
  * The largest sockaddr size is the last one.

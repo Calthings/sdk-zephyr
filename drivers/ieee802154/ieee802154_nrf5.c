@@ -13,32 +13,32 @@
 #define LOG_LEVEL LOG_LEVEL_NONE
 #endif
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <errno.h>
 
-#include <kernel.h>
-#include <arch/cpu.h>
-#include <debug/stack.h>
+#include <zephyr/kernel.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/debug/stack.h>
 
 #include <soc.h>
 #include <soc_secure.h>
-#include <device.h>
-#include <init.h>
-#include <debug/stack.h>
-#include <net/net_if.h>
-#include <net/net_pkt.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
+#include <zephyr/debug/stack.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_pkt.h>
 
 #if defined(CONFIG_NET_L2_OPENTHREAD)
-#include <net/openthread.h>
+#include <zephyr/net/openthread.h>
 #endif
 
-#include <sys/byteorder.h>
+#include <zephyr/sys/byteorder.h>
 #include <string.h>
-#include <random/rand32.h>
+#include <zephyr/random/rand32.h>
 
-#include <net/ieee802154_radio.h>
+#include <zephyr/net/ieee802154_radio.h>
 
 #include "ieee802154_nrf5.h"
 #include "nrf_802154.h"
@@ -62,11 +62,6 @@ static struct nrf5_802154_data nrf5_data;
 #define DRX_SLOT_PH 0 /* Placeholder delayed reception window ID */
 #define DRX_SLOT_RX 1 /* Actual delayed reception window ID */
 #define PH_DURATION 10 /* Duration of the placeholder window, in microseconds */
-/* When scheduling the actual delayed reception window an adjustment of
- * 800 us is required to match the CSL transmission timing for unknown
- * reasons. This is a temporary workaround until the root cause is found.
- */
-#define DRX_ADJUST 800
 
 #if defined(CONFIG_IEEE802154_NRF5_UICR_EUI64_ENABLE)
 #if defined(CONFIG_SOC_NRF5340_CPUAPP)
@@ -132,6 +127,7 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 	struct net_pkt *pkt;
 	struct nrf5_802154_rx_frame *rx_frame;
 	uint8_t pkt_len;
+	uint8_t *psdu;
 
 	ARG_UNUSED(arg2);
 	ARG_UNUSED(arg3);
@@ -195,8 +191,9 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 			goto drop;
 		}
 
-		nrf_802154_buffer_free_raw(rx_frame->psdu);
+		psdu = rx_frame->psdu;
 		rx_frame->psdu = NULL;
+		nrf_802154_buffer_free_raw(psdu);
 
 		if (LOG_LEVEL >= LOG_LEVEL_DBG) {
 			log_stack_usage(&nrf5_radio->rx_thread);
@@ -205,8 +202,9 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 		continue;
 
 drop:
-		nrf_802154_buffer_free_raw(rx_frame->psdu);
+		psdu = rx_frame->psdu;
 		rx_frame->psdu = NULL;
+		nrf_802154_buffer_free_raw(psdu);
 
 		net_pkt_unref(pkt);
 	}
@@ -851,7 +849,7 @@ static void nrf5_config_csl_period(uint16_t period)
 
 static void nrf5_schedule_rx(uint8_t channel, uint32_t start, uint32_t duration)
 {
-	nrf5_receive_at(start - DRX_ADJUST, duration, channel, DRX_SLOT_RX);
+	nrf5_receive_at(start, duration, channel, DRX_SLOT_RX);
 
 	/* The placeholder reception window is rescheduled for the next period */
 	nrf_802154_receive_at_cancel(DRX_SLOT_PH);
@@ -996,7 +994,7 @@ void nrf_802154_received_timestamp_raw(uint8_t *data, int8_t power, uint8_t lqi,
 		nrf5_data.rx_frames[i].lqi = lqi;
 
 #if IS_ENABLED(CONFIG_NET_PKT_TIMESTAMP)
-		nrf5_data.rx_frames[i].time = nrf_802154_first_symbol_timestamp_get(time, data[0]);
+		nrf5_data.rx_frames[i].time = nrf_802154_mhr_timestamp_get(time, data[0]);
 #endif
 
 		if (data[ACK_REQUEST_BYTE] & ACK_REQUEST_BIT) {
@@ -1084,7 +1082,7 @@ void nrf_802154_transmitted_raw(uint8_t *frame,
 
 #if IS_ENABLED(CONFIG_NET_PKT_TIMESTAMP)
 		nrf5_data.ack_frame.time =
-			nrf_802154_first_symbol_timestamp_get(
+			nrf_802154_mhr_timestamp_get(
 				metadata->data.transmitted.time, nrf5_data.ack_frame.psdu[0]);
 #endif
 	}
@@ -1144,9 +1142,9 @@ void nrf_802154_energy_detection_failed(nrf_802154_ed_error_t error)
 }
 
 #if defined(CONFIG_NRF_802154_SER_HOST)
-void nrf_802154_serialization_error(const nrf_802154_ser_err_data_t *p_err)
+void nrf_802154_serialization_error(const nrf_802154_ser_err_data_t *err)
 {
-	__ASSERT(false, "802.15.4 serialization error");
+	__ASSERT(false, "802.15.4 serialization error: %d", err->reason);
 }
 #endif
 

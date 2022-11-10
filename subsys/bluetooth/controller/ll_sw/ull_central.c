@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <soc.h>
-#include <bluetooth/hci.h>
-#include <sys/byteorder.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "util/util.h"
 #include "util/memq.h"
@@ -36,6 +36,7 @@
 #include "lll_conn.h"
 #include "lll_central.h"
 #include "lll_filter.h"
+#include "lll_conn_iso.h"
 
 #if !defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 #include "ull_tx_queue.h"
@@ -57,7 +58,11 @@
 #include "ll_settings.h"
 
 #if !defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
-#include "ll_sw/ull_llcp.h"
+#include "isoal.h"
+#include "ull_iso_types.h"
+#include "ull_conn_iso_types.h"
+
+#include "ull_llcp.h"
 #endif /* !CONFIG_BT_LL_SW_LLCP_LEGACY */
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
@@ -211,6 +216,16 @@ uint8_t ll_create_connection(uint16_t scan_interval, uint16_t scan_window,
 	conn_lll->nesn = 0;
 	conn_lll->empty = 0;
 
+#if defined(CONFIG_BT_CTLR_PHY)
+	/* Use the default 1M PHY, extended connection initiation in LLL will
+	 * update this with the correct PHY.
+	 */
+	conn_lll->phy_tx = PHY_1M;
+	conn_lll->phy_flags = 0;
+	conn_lll->phy_tx_time = PHY_1M;
+	conn_lll->phy_rx = PHY_1M;
+#endif /* CONFIG_BT_CTLR_PHY */
+
 #if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 #if defined(CONFIG_BT_CTLR_DATA_LENGTH)
 	conn_lll->max_tx_octets = PDU_DC_PAYLOAD_SIZE_MIN;
@@ -229,16 +244,6 @@ uint8_t ll_create_connection(uint16_t scan_interval, uint16_t scan_window,
 	ull_dle_init(conn, PHY_1M);
 #endif /* CONFIG_BT_CTLR_DATA_LENGTH */
 #endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
-
-#if defined(CONFIG_BT_CTLR_PHY)
-	/* Use the default 1M PHY, extended connection initiation in LLL will
-	 * update this with the correct PHY.
-	 */
-	conn_lll->phy_tx = PHY_1M;
-	conn_lll->phy_flags = 0;
-	conn_lll->phy_tx_time = PHY_1M;
-	conn_lll->phy_rx = PHY_1M;
-#endif /* CONFIG_BT_CTLR_PHY */
 
 #if defined(CONFIG_BT_CTLR_CONN_RSSI)
 	conn_lll->rssi_latest = BT_HCI_LE_RSSI_NOT_AVAILABLE;
@@ -285,9 +290,11 @@ uint8_t ll_create_connection(uint16_t scan_interval, uint16_t scan_window,
 	conn->supervision_reload = RADIO_CONN_EVENTS(timeout * 10000U,
 							 conn_interval_us);
 
+#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 	conn->procedure_expire = 0U;
 	conn->procedure_reload = RADIO_CONN_EVENTS(40000000,
 						       conn_interval_us);
+#endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
 
 #if defined(CONFIG_BT_CTLR_LE_PING)
 	conn->apto_expire = 0U;
@@ -322,6 +329,12 @@ uint8_t ll_create_connection(uint16_t scan_interval, uint16_t scan_window,
 	 * terminate ind rx node
 	 */
 	conn->llcp_terminate.node_rx.hdr.link = link;
+
+#if defined(CONFIG_BT_CTLR_RX_ENQUEUE_HOLD)
+	conn->llcp_rx_hold = NULL;
+	conn_lll->rx_hold_req = 0U;
+	conn_lll->rx_hold_ack = 0U;
+#endif /* CONFIG_BT_CTLR_RX_ENQUEUE_HOLD */
 
 #if defined(CONFIG_BT_CTLR_LE_ENC)
 	conn_lll->enc_rx = conn_lll->enc_tx = 0U;
@@ -360,6 +373,9 @@ uint8_t ll_create_connection(uint16_t scan_interval, uint16_t scan_window,
 #else /* CONFIG_BT_LL_SW_LLCP_LEGACY */
 	/* Re-initialize the control procedure data structures */
 	ull_llcp_init(conn);
+
+	/* Setup the PRT reload */
+	ull_cp_prt_reload_set(conn, conn_interval_us);
 
 	conn->central.terminate_ack = 0U;
 

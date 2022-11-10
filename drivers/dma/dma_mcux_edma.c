@@ -11,16 +11,16 @@
 
 #include <errno.h>
 #include <soc.h>
-#include <init.h>
-#include <kernel.h>
-#include <devicetree.h>
-#include <sys/atomic.h>
-#include <drivers/dma.h>
-#include <drivers/clock_control.h>
+#include <zephyr/init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/drivers/dma.h>
+#include <zephyr/drivers/clock_control.h>
 
 #include "dma_mcux_edma.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 #define DT_DRV_COMPAT nxp_mcux_edma
 
@@ -47,7 +47,16 @@ struct dma_mcux_edma_config {
 #elif defined(CONFIG_NOCACHE_MEMORY)
 #define EDMA_TCDPOOL_CACHE_ATTR __nocache
 #else
-#error tcdpool could not be located in cacheable memory, a requirement for proper EDMA operation.
+/*
+ * Note: the TCD pool *must* be in non cacheable memory. All of the NXP SOCs
+ * that support caching memory have their default SRAM regions defined as a
+ * non cached memory region, but if the default SRAM region is changed EDMA
+ * TCD pools would be moved to cacheable memory, resulting in DMA cache
+ * coherency issues.
+ */
+
+#define EDMA_TCDPOOL_CACHE_ATTR
+
 #endif /* CONFIG_DMA_MCUX_USE_DTCM_FOR_DMA_DESCRIPTORS */
 
 #else /* CONFIG_HAS_MCUX_CACHE */
@@ -179,7 +188,7 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
 	struct dma_block_config *block_config = config->head_block;
 	uint32_t slot = config->dma_slot;
 	edma_transfer_type_t transfer_type;
-	int key;
+	unsigned int key;
 	int ret = 0;
 
 	if (slot > DT_INST_PROP(0, dma_requests)) {
@@ -391,7 +400,7 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
 	struct call_back *data = DEV_CHANNEL_DATA(dev, channel);
 
 	/* Lock the channel configuration */
-	const int key = irq_lock();
+	const unsigned int key = irq_lock();
 	int ret = 0;
 
 	if (!data->transfer_settings.valid) {

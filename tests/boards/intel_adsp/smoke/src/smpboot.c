@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <ztest.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/ztest.h>
 #include "tests.h"
 
 /* Experimentally 10ms is enough time to get the second CPU to run on

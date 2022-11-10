@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <kernel.h>
-#include <spinlock.h>
+#include <zephyr/kernel.h>
+#include <zephyr/spinlock.h>
 #include <ksched.h>
-#include <timeout_q.h>
-#include <syscall_handler.h>
-#include <drivers/timer/system_timer.h>
-#include <sys_clock.h>
+#include <zephyr/timeout_q.h>
+#include <zephyr/syscall_handler.h>
+#include <zephyr/drivers/timer/system_timer.h>
+#include <zephyr/sys_clock.h>
 
 static uint64_t curr_tick;
 
@@ -250,7 +250,7 @@ void sys_clock_announce(int32_t ticks)
 	 * timeouts and confuse apps), just increment the tick count
 	 * and return.
 	 */
-	if (IS_ENABLED(CONFIG_SMP) && announce_remaining != 0) {
+	if (IS_ENABLED(CONFIG_SMP) && (announce_remaining != 0)) {
 		announce_remaining += ticks;
 		k_spin_unlock(&timeout_lock, key);
 		return;
@@ -263,13 +263,13 @@ void sys_clock_announce(int32_t ticks)
 		int dt = t->dticks;
 
 		curr_tick += dt;
-		announce_remaining -= dt;
 		t->dticks = 0;
 		remove_timeout(t);
 
 		k_spin_unlock(&timeout_lock, key);
 		t->fn(t);
 		key = k_spin_lock(&timeout_lock);
+		announce_remaining -= dt;
 	}
 
 	if (first() != NULL) {
@@ -289,7 +289,7 @@ int64_t sys_clock_tick_get(void)
 	uint64_t t = 0U;
 
 	LOCKED(&timeout_lock) {
-		t = curr_tick + sys_clock_elapsed();
+		t = curr_tick + elapsed();
 	}
 	return t;
 }

@@ -24,9 +24,9 @@
 #include <zephyr/types.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <net/net_ip.h>
+#include <zephyr/net/net_ip.h>
 
-#include <sys/slist.h>
+#include <zephyr/sys/slist.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -263,9 +263,6 @@ struct coap_option {
 typedef int (*coap_reply_t)(const struct coap_packet *response,
 			    struct coap_reply *reply,
 			    const struct sockaddr *from);
-
-#define COAP_DEFAULT_MAX_RETRANSMIT 4
-#define COAP_DEFAULT_ACK_RANDOM_FACTOR 1.5
 
 /**
  * @brief Represents a request awaiting for an acknowledgment (ACK).

@@ -93,6 +93,12 @@ config CPU_CORTEX_M_HAS_CACHE
 	  This option signifies that the CPU implements Data and Instruction
 	  Cache
 
+config DCACHE_LINE_SIZE
+	default 32 if CPU_CORTEX_M_HAS_CACHE
+
+config ICACHE_LINE_SIZE
+	default 32 if CPU_CORTEX_M_HAS_CACHE
+
 config CPU_CORTEX_M_HAS_DWT
 	bool
 	depends on !CPU_CORTEX_M0 && !CPU_CORTEX_M0PLUS && !CPU_CORTEX_M1
@@ -301,6 +307,15 @@ config ZERO_LATENCY_IRQS
 	  Since Zero-latency ISRs will run in the same priority or possibly at
 	  higher priority than the rest of the kernel they cannot use any
 	  kernel functionality.
+
+config ZERO_LATENCY_LEVELS
+	int "Number of interrupt priority levels reserved for zero latency"
+	depends on ZERO_LATENCY_IRQS
+	range 1 255
+	help
+	  The amount of interrupt priority levels reserved for zero latency
+	  interrupts. Increase this value to reserve more than one priority
+	  level for zero latency interrupts.
 
 config DYNAMIC_DIRECT_INTERRUPTS
 	bool "Support for dynamic direct interrupts"

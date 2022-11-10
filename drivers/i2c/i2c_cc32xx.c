@@ -8,9 +8,9 @@
 
 #define DT_DRV_COMPAT ti_cc32xx_i2c
 
-#include <kernel.h>
+#include <zephyr/kernel.h>
 #include <errno.h>
-#include <drivers/i2c.h>
+#include <zephyr/drivers/i2c.h>
 #include <soc.h>
 
 /* Driverlib includes */
@@ -21,7 +21,7 @@
 #include <driverlib/i2c.h>
 
 #define LOG_LEVEL CONFIG_I2C_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_cc32xx);
 
 #include "i2c-priv.h"
@@ -84,7 +84,7 @@ static int i2c_cc32xx_configure(const struct device *dev,
 	uint32_t base = DEV_BASE(dev);
 	uint32_t bitrate_id;
 
-	if (!(dev_config_raw & I2C_MODE_MASTER)) {
+	if (!(dev_config_raw & I2C_MODE_CONTROLLER)) {
 		return -EINVAL;
 	}
 
@@ -347,7 +347,7 @@ static int i2c_cc32xx_init(const struct device *dev)
 
 	/* Set to default configuration: */
 	bitrate_cfg = i2c_map_dt_bitrate(config->bitrate);
-	error = i2c_cc32xx_configure(dev, I2C_MODE_MASTER | bitrate_cfg);
+	error = i2c_cc32xx_configure(dev, I2C_MODE_CONTROLLER | bitrate_cfg);
 	if (error) {
 		return error;
 	}

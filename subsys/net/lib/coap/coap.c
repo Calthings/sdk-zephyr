@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_coap, CONFIG_COAP_LOG_LEVEL);
 
 #include <stdlib.h>
@@ -12,17 +12,17 @@ LOG_MODULE_REGISTER(net_coap, CONFIG_COAP_LOG_LEVEL);
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <random/rand32.h>
-#include <sys/atomic.h>
-#include <sys/util.h>
+#include <zephyr/random/rand32.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/types.h>
-#include <sys/byteorder.h>
-#include <sys/math_extras.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/math_extras.h>
 
-#include <net/net_ip.h>
-#include <net/net_core.h>
-#include <net/coap.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_core.h>
+#include <zephyr/net/coap.h>
 
 /* Values as per RFC 7252, section-3.1.
  *
@@ -1251,7 +1251,7 @@ static uint32_t init_ack_timeout(void)
 {
 #if defined(CONFIG_COAP_RANDOMIZE_ACK_TIMEOUT)
 	const uint32_t max_ack = CONFIG_COAP_INIT_ACK_TIMEOUT_MS *
-				 COAP_DEFAULT_ACK_RANDOM_FACTOR;
+				 CONFIG_COAP_ACK_RANDOM_PERCENT / 100;
 	const uint32_t min_ack = CONFIG_COAP_INIT_ACK_TIMEOUT_MS;
 
 	/* Randomly generated initial ACK timeout

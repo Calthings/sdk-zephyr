@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 set_property(TARGET linker PROPERTY devices_start_symbol "__device_start")
 
-find_program(CMAKE_LINKER ${CROSS_COMPILE}lldac PATH ${TOOLCHAIN_HOME} NO_DEFAULT_PATH)
+find_program(CMAKE_LINKER ${CROSS_COMPILE}lldac PATHS ${TOOLCHAIN_HOME} NO_DEFAULT_PATH)
 
 # the prefix to transfer linker options from compiler
 set_ifndef(LINKERFLAGPREFIX -Wl,)
@@ -211,7 +211,7 @@ macro(toolchain_ld_relocation)
     OUTPUT ${MEM_RELOCATION_CODE} ${MEM_RELOCATION_LD}
     COMMAND
     ${PYTHON_EXECUTABLE}
-    ${ZEPHYR_BASE}/scripts/gen_relocate_app.py
+    ${ZEPHYR_BASE}/scripts/build/gen_relocate_app.py
     $<$<BOOL:${CMAKE_VERBOSE_MAKEFILE}>:--verbose>
     -d ${APPLICATION_BINARY_DIR}
     -i \"$<TARGET_PROPERTY:code_data_relocation_target,COMPILE_DEFINITIONS>\"

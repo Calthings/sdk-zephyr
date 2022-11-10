@@ -6,14 +6,14 @@
 
 #define DT_DRV_COMPAT ti_cc13xx_cc26xx_i2c
 
-#include <kernel.h>
-#include <drivers/i2c.h>
-#include <drivers/pinctrl.h>
-#include <pm/device.h>
-#include <pm/policy.h>
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/pinctrl.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 
 #define LOG_LEVEL CONFIG_I2C_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(i2c_cc13xx_cc26xx);
 
 #include <driverlib/i2c.h>
@@ -196,7 +196,7 @@ static int i2c_cc13xx_cc26xx_transfer(const struct device *dev,
 
 	k_sem_take(&data->lock, K_FOREVER);
 
-	pm_policy_state_lock_get(PM_STATE_STANDBY);
+	pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 
 	for (int i = 0; i < num_msgs; i++) {
 		/* Not supported by hardware */
@@ -218,7 +218,7 @@ static int i2c_cc13xx_cc26xx_transfer(const struct device *dev,
 		}
 	}
 
-	pm_policy_state_lock_put(PM_STATE_STANDBY);
+	pm_policy_state_lock_put(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 
 	k_sem_give(&data->lock);
 
@@ -245,7 +245,7 @@ static int i2c_cc13xx_cc26xx_configure(const struct device *dev,
 	}
 
 	/* Support for slave mode has not been implemented */
-	if (!(dev_config & I2C_MODE_MASTER)) {
+	if (!(dev_config & I2C_MODE_CONTROLLER)) {
 		LOG_ERR("Slave mode is not supported");
 		return -EIO;
 	}
@@ -389,7 +389,7 @@ static int i2c_cc13xx_cc26xx_init(const struct device *dev)
 	}
 
 	/* I2C should not be accessed until power domain is on. */
-	while (PRCMPowerDomainStatus(PRCM_DOMAIN_SERIAL) !=
+	while (PRCMPowerDomainsAllOn(PRCM_DOMAIN_SERIAL) !=
 	       PRCM_DOMAIN_POWER_ON) {
 		continue;
 	}
@@ -407,7 +407,7 @@ static int i2c_cc13xx_cc26xx_init(const struct device *dev)
 	}
 
 	cfg = i2c_map_dt_bitrate(DT_INST_PROP(0, clock_frequency));
-	err = i2c_cc13xx_cc26xx_configure(dev, cfg | I2C_MODE_MASTER);
+	err = i2c_cc13xx_cc26xx_configure(dev, cfg | I2C_MODE_CONTROLLER);
 	if (err) {
 		LOG_ERR("Failed to configure");
 		return err;

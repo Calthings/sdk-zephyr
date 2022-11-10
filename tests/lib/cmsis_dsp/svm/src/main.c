@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <zephyr.h>
+#include <zephyr/ztest.h>
+#include <zephyr/zephyr.h>
 
 extern void test_svm_f16(void);
 extern void test_svm_f32(void);

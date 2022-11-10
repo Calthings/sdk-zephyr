@@ -7,19 +7,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <zephyr/types.h>
 
-#include <sys/check.h>
+#include <zephyr/sys/check.h>
 
-#include <device.h>
-#include <init.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/l2cap.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/gatt.h>
-#include <bluetooth/audio/aics.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/l2cap.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/audio/aics.h>
 
 #include "aics_internal.h"
 
@@ -51,9 +51,15 @@ uint8_t aics_client_notify_handler(struct bt_conn *conn, struct bt_gatt_subscrib
 				   const void *data, uint16_t length)
 {
 	uint16_t handle = params->value_handle;
-	struct bt_aics *inst = lookup_aics_by_handle(conn, handle);
+	struct bt_aics *inst;
 	struct bt_aics_state *state;
 	uint8_t *status;
+
+	if (conn == NULL) {
+		return BT_GATT_ITER_CONTINUE;
+	}
+
+	inst = lookup_aics_by_handle(conn, handle);
 
 	if (!inst) {
 		BT_DBG("Instance not found");
@@ -99,7 +105,7 @@ uint8_t aics_client_notify_handler(struct bt_conn *conn, struct bt_gatt_subscrib
 
 		memcpy(desc, data, length);
 		desc[length] = '\0';
-		BT_DBG("Inst %p: Input description: %s", inst, log_strdup(desc));
+		BT_DBG("Inst %p: Input description: %s", inst, desc);
 		if (inst->cli.cb && inst->cli.cb->description) {
 			inst->cli.cb->description(inst, 0, desc);
 		}
@@ -521,7 +527,7 @@ static uint8_t aics_client_read_desc_cb(struct bt_conn *conn, uint8_t err,
 	}
 
 	desc[length] = '\0';
-	BT_DBG("Input description: %s", log_strdup(desc));
+	BT_DBG("Input description: %s", desc);
 
 	if (inst->cli.cb && inst->cli.cb->description) {
 		inst->cli.cb->description(inst, cb_err, desc);

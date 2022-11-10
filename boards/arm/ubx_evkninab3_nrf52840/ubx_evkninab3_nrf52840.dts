@@ -119,6 +119,7 @@
 		blue-pwm-led = &blue_pwm_led;
 		sw0 = &button0;
 		sw1 = &button1;
+		watchdog0 = &wdt0;
 	};
 };
 
@@ -188,7 +189,7 @@ arduino_i2c: &i2c0 {
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x000000000 0x0000C000>;
+			reg = <0x00000000 0x0000C000>;
 		};
 		slot0_partition: partition@c000 {
 			label = "image-0";

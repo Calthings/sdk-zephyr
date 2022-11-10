@@ -69,33 +69,15 @@ The Zephyr TLSR9518ADK80D board configuration supports the following hardware fe
 +----------------+------------+------------------------------+
 | FLASH (MSPI)   | on-chip    | flash                        |
 +----------------+------------+------------------------------+
-| RADIO          | on-chip    | ieee802154, OpenThread       |
+| RADIO          | on-chip    | Bluetooth,                   |
+|                |            | ieee802154, OpenThread       |
 +----------------+------------+------------------------------+
 | SPI (Master)   | on-chip    | spi                          |
 +----------------+------------+------------------------------+
 | I2C (Master)   | on-chip    | i2c                          |
 +----------------+------------+------------------------------+
-
-The following example projects are supported:
-
-- samples/hello_world
-- samples/synchronization
-- samples/philosophers
-- samples/basic/threads
-- samples/basic/blinky
-- samples/basic/blinky_pwm
-- samples/basic/fade_led
-- samples/basic/button
-- samples/subsys/nvs
-- samples/subsys/console/echo
-- samples/subsys/console/getchar
-- samples/subsys/console/getline
-- samples/subsys/shell/shell_module
-- samples/subsys/cpp/cpp_synchronization
-- samples/drivers/flash_shell
-- samples/net/sockets/echo_client (OpenThread and IEEE802154)
-- samples/net/sockets/echo_server (OpenThread and IEEE802154)
-- samples/net/openthread/coprocessor
+| ADC            | on-chip    | adc                          |
++----------------+------------+------------------------------+
 
 .. note::
    To support "button" example project PC3-KEY3 (J20-19, J20-20) jumper needs to be removed and KEY3 (J20-19) should be connected to VDD3_DCDC (J51-13) externally.
@@ -255,7 +237,24 @@ It is also possible to use the west flash command, but additional steps are requ
 Debugging
 =========
 
-Supporting UART debug and OpenOCD+GDB.
+This port supports UART debug and OpenOCD+GDB. The `west debug` command also supported. You may run
+it in a simple way, like:
+
+.. code-block:: console
+
+   west debug
+
+Or with additional arguments, like:
+
+.. code-block:: console
+
+   west debug --gdb-port=<port_number> --gdb-ex=<additional_ex_arguments>
+
+Example:
+
+.. code-block:: console
+
+   west debug --gdb-port=1111 --gdb-ex="-ex monitor reset halt -ex b main -ex continue"
 
 References
 **********

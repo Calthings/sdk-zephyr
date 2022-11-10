@@ -83,6 +83,12 @@ def kconfig_load(app: Sphinx) -> Tuple[kconfiglib.Kconfig, Dict[str, str]]:
         with open(Path(td) / "Kconfig.modules", "w") as f:
             f.write(kconfig)
 
+        # generate dummy Kconfig.dts file
+        kconfig = ""
+
+        with open(Path(td) / "Kconfig.dts", "w") as f:
+            f.write(kconfig)
+
         # base environment
         os.environ["ZEPHYR_BASE"] = str(ZEPHYR_BASE)
         os.environ["srctree"] = str(ZEPHYR_BASE)
@@ -247,7 +253,10 @@ def kconfig_build_resources(app: Sphinx) -> None:
         kconfig, module_paths = kconfig_load(app)
         db = list()
 
-        for sc in chain(kconfig.unique_defined_syms, kconfig.unique_choices):
+        for sc in sorted(
+            chain(kconfig.unique_defined_syms, kconfig.unique_choices),
+            key=lambda sc: sc.name if sc.name else "",
+        ):
             # skip nameless symbols
             if not sc.name:
                 continue

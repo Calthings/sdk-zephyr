@@ -44,6 +44,7 @@ enum {
 	BT_DEV_INITIATING,
 
 	BT_DEV_RPA_VALID,
+	BT_DEV_RPA_TIMEOUT_CHANGED,
 
 	BT_DEV_ID_PENDING,
 	BT_DEV_STORE_ID,
@@ -116,6 +117,8 @@ enum {
 	BT_PER_ADV_ENABLED,
 	/* Periodic Advertising parameters has been set in the controller. */
 	BT_PER_ADV_PARAMS_SET,
+	/* Periodic Advertising to include AdvDataInfo (ADI) */
+	BT_PER_ADV_INCLUDE_ADI,
 	/* Constant Tone Extension parameters for Periodic Advertising
 	 * has been set in the controller.
 	 */
@@ -358,6 +361,9 @@ struct bt_dev {
 
 	/* Work used for RPA rotation */
 	struct k_work_delayable rpa_update;
+
+	/* The RPA timeout value. */
+	uint16_t rpa_timeout;
 #endif
 
 	/* Local Name */
@@ -452,6 +458,7 @@ void bt_hci_le_per_adv_report(struct net_buf *buf);
 void bt_hci_le_per_adv_sync_lost(struct net_buf *buf);
 void bt_hci_le_biginfo_adv_report(struct net_buf *buf);
 void bt_hci_le_df_connectionless_iq_report(struct net_buf *buf);
+void bt_hci_le_vs_df_connectionless_iq_report(struct net_buf *buf);
 void bt_hci_le_past_received(struct net_buf *buf);
 
 /* Adv HCI event handlers */
@@ -474,4 +481,5 @@ void bt_hci_role_change(struct net_buf *buf);
 void bt_hci_synchronous_conn_complete(struct net_buf *buf);
 
 void bt_hci_le_df_connection_iq_report(struct net_buf *buf);
+void bt_hci_le_vs_df_connection_iq_report(struct net_buf *buf);
 void bt_hci_le_df_cte_req_failed(struct net_buf *buf);

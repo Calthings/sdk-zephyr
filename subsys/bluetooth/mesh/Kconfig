@@ -289,6 +289,46 @@ config BT_MESH_CRPL
 	  protection list. This option is similar to the network message
 	  cache size, but has a different purpose.
 
+choice BT_MESH_RPL_STORAGE_MODE
+	prompt "Replay protection list storage mode"
+	default BT_MESH_RPL_STORAGE_MODE_SETTINGS
+
+config BT_MESH_RPL_STORAGE_MODE_SETTINGS
+	bool "Persistent storage of RPL in Settings"
+	help
+	  Persistent storage of RPL in Settings. If BT_SETTINGS is not
+	  enabled this choise will provide a non-persistent implementation
+	  variant of the RPL list.
+
+endchoice
+
+if BT_MESH_RPL_STORAGE_MODE_SETTINGS && BT_SETTINGS
+
+config BT_MESH_RPL_STORE_TIMEOUT
+	int "Minimum interval after which unsaved RPL entries are updated in the settings subsystem"
+	range -1 1000000
+	default 5
+	help
+	  This value defines in seconds how soon unsaved RPL entries
+	  gets written to the persistent storage. Setting this value
+	  to a large number may lead to security vulnerabilities if a node
+	  gets powered off before the timer is fired. When flash is used
+	  as the persistent storage setting this value to a low number
+	  may wear out flash sooner or later. However, if the RPL gets
+	  updated infrequently a value as low as 0 (write immediately)
+	  may make sense. Setting this value to -1 will disable this timer.
+	  In this case, a user is responsible to store pending RPL entries
+	  using @ref bt_mesh_rpl_pending_store. In the mean time, when
+	  IV Index is updated, the outdated RPL entries will still be
+	  stored by @ref BT_MESH_STORE_TIMEOUT. Finding the right balance
+	  between this timeout and calling @ref bt_mesh_rpl_pending_store
+	  may reduce a risk of security vulnerability and flash wear out.
+	  Failure to store the RPL and becoming vulnerable after reboot
+	  will cause the device to not perform the replay protection
+	  required by the spec.
+
+endif # BT_MESH_RPL_STORAGE_MODE_SETTINGS && BT_SETTINGS
+
 config BT_MESH_MSG_CACHE_SIZE
 	int "Network message cache size"
 	default 32
@@ -304,16 +344,13 @@ config BT_MESH_MSG_CACHE_SIZE
 	  for each received network PDU and increases RAM footprint proportionately.
 
 config BT_MESH_ADV_BUF_COUNT
-	int "Number of advertising buffers"
+	int "Number of advertising buffers for local messages"
 	default 6
 	range 1 256
 	help
-	  Number of advertising buffers available. This should be chosen
-	  based on what kind of features the local node should have. E.g.
-	  a relay will perform better the more buffers it has. Another
-	  thing to consider is outgoing segmented messages. There must
-	  be at least three more advertising buffers than the maximum
-	  supported outgoing segment count (BT_MESH_TX_SEG_MAX).
+	  Number of advertising buffers available for sending local messages.
+	  This should be chosen based on the number of local messages that the node
+	  can send at concurrently.
 
 choice BT_MESH_ADV
 	prompt "Advertiser mode"
@@ -493,6 +530,30 @@ config BT_MESH_TX_SEG_MAX
 	  which leaves 56 bytes for application layer data using a
 	  4-byte MIC and 52 bytes using an 8-byte MIC.
 
+config BT_MESH_SEG_ACK_BASE_TIMEOUT
+	int "SegAck transmission base timeout"
+	default 150
+	range 150 400
+	help
+	  Defines a base timeout for the acknowledgment timer used to delay
+	  transmission of the Segmented Acknowledgment message.
+
+config BT_MESH_SEG_ACK_PER_HOP_TIMEOUT
+	int "SegAck transmission timeout per hop"
+	default 50
+	range 50 250
+	help
+	  Defines an additional per-hop timeout for the acknowledgment timer
+	  used to delay transmission of the Segmented Acknowledgment message.
+
+config BT_MESH_SEG_ACK_PER_SEGMENT_TIMEOUT
+	int "SegAck transmission timeout per segment not yet received"
+	default 0
+	range 0 100
+	help
+	  Defines an additional timeout for the acknowledgment timer for every
+	  segment not yet received.
+
 config BT_MESH_DEFAULT_TTL
 	int "Default TTL value"
 	default 7
@@ -579,6 +640,21 @@ config BT_MESH_RELAY_RETRANSMIT_INTERVAL
 	  Controls the initial interval between retransmissions of relayed
 	  messages, in milliseconds. Can be changed through runtime
 	  configuration.
+
+config BT_MESH_RELAY_BUF_COUNT
+	int "Number of advertising buffers for relayed messages"
+	default 32
+	range 1 256
+	help
+	  Number of advertising buffers available for messages to be relayed.
+	  High number of advertising buffers increases the reliability of the
+	  mesh network. Low number of advertising buffers reduces the message
+	  latency on the Relay Node, but at the same time increases the amount
+	  of packet drops. When considering the message latency, also consider
+	  the values of BT_MESH_RELAY_RETRANSMIT_COUNT and
+	  BT_MESH_RELAY_RETRANSMIT_INTERVAL. A higher number of
+	  BT_MESH_RELAY_ADV_SETS allows the increase in the number of buffers
+	  while maintaining the latency.
 
 endif
 
@@ -844,29 +920,6 @@ config BT_MESH_SEQ_STORE_RATE
 	  will add this number to the last stored one, so that it starts
 	  off with a value that's guaranteed to be larger than the last
 	  one used before power off.
-
-config BT_MESH_RPL_STORE_TIMEOUT
-	int "Minimum interval after which unsaved RPL entries are updated in storage"
-	range -1 1000000
-	default 5
-	help
-	  This value defines in seconds how soon unsaved RPL entries
-	  gets written to the persistent storage. Setting this value
-	  to a large number may lead to security vulnerabilities if a node
-	  gets powered off before the timer is fired. When flash is used
-	  as the persistent storage setting this value to a low number
-	  may wear out flash sooner or later. However, if the RPL gets
-	  updated infrequently a value as low as 0 (write immediately)
-	  may make sense. Setting this value to -1 will disable this timer.
-	  In this case, a user is responsible to store pending RPL entries
-	  using @ref bt_mesh_rpl_pending_store. In the mean time, when
-	  IV Index is updated, the outdated RPL entries will still be
-	  stored by @ref BT_MESH_STORE_TIMEOUT. Finding the right balance
-	  between this timeout and calling @ref bt_mesh_rpl_pending_store
-	  may reduce a risk of security vulnerability and flash wear out.
-	  Failure to store the RPL and becoming vulnerable after reboot
-	  will cause the device to not perform the replay protection
-	  required by the spec.
 
 endif # BT_SETTINGS
 

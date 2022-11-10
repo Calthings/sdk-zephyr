@@ -5,16 +5,16 @@
  */
 
 #include <zephyr/types.h>
-#include <sys/byteorder.h>
-#include <ztest.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/ztest.h>
 #include "kconfig.h"
 
 #define ULL_LLCP_UNITTEST
 
-#include <bluetooth/hci.h>
-#include <sys/byteorder.h>
-#include <sys/slist.h>
-#include <sys/util.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/slist.h>
+#include <zephyr/sys/util.h>
 #include "hal/ccm.h"
 
 #include "util/util.h"
@@ -29,7 +29,13 @@
 #include "lll.h"
 #include "lll_df_types.h"
 #include "lll_conn.h"
+#include "lll_conn_iso.h"
+
 #include "ull_tx_queue.h"
+
+#include "isoal.h"
+#include "ull_iso_types.h"
+#include "ull_conn_iso_types.h"
 #include "ull_conn_types.h"
 
 #include "ull_llcp.h"

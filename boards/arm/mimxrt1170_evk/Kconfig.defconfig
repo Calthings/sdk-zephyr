@@ -19,11 +19,8 @@ if DISK_DRIVERS
 config DISK_DRIVER_SDMMC
 	default y
 
-config SDMMC_USDHC_DAT3_PWR_TOGGLE
+config IMX_USDHC_DAT3_PWR_TOGGLE
 	default y
-
-config SDMMC_USDHC_DAT3_PWR_DELAY
-	default 10
 
 endif # DISK_DRIVERS
 
@@ -32,15 +29,15 @@ if FLASH
 config FLASH_MCUX_FLEXSPI_NOR
 	default y
 
-config FLASH_MCUX_FLEXSPI_XIP
-	default y if CPU_CORTEX_M7
-
 choice FLASH_MCUX_FLEXSPI_XIP_MEM_TARGET
 	default FLASH_MCUX_FLEXSPI_XIP_MEM_ITCM if CPU_CORTEX_M7
 	default FLASH_MCUX_FLEXSPI_XIP_MEM_SRAM if CPU_CORTEX_M4
 endchoice
 
 endif #FLASH
+
+config I2C
+	default y if SENSOR
 
 if NETWORKING
 
@@ -51,5 +48,15 @@ config ETH_MCUX_PHY_RESET
 	default y
 
 endif # NETWORKING
+
+if DISPLAY
+
+config MIPI_DSI
+	default y
+
+config REGULATOR
+	default y
+
+endif # DISPLAY
 
 endif # BOARD_MIMXRT1170_EVK_CM7 || BOARD_MIMXRT1170_EVK_CM4

@@ -32,9 +32,9 @@
 
 #ifdef CONFIG_RISCV_PMP
 #ifdef CONFIG_64BIT
-#define	RISCV_PMP_CFG_NUM	(CONFIG_PMP_SLOT >> 3)
+#define	RISCV_PMP_CFG_NUM	(CONFIG_PMP_SLOTS >> 3)
 #else
-#define	RISCV_PMP_CFG_NUM	(CONFIG_PMP_SLOT >> 2)
+#define	RISCV_PMP_CFG_NUM	(CONFIG_PMP_SLOTS >> 2)
 #endif
 #endif
 
@@ -57,10 +57,10 @@
 struct _callee_saved {
 	ulong_t sp;	/* Stack pointer, (x2 register) */
 	ulong_t ra;	/* return address */
-	ulong_t tp;	/* thread pointer */
 
 	ulong_t s0;	/* saved register/frame pointer */
 	ulong_t s1;	/* saved register */
+#if !defined(CONFIG_RISCV_ISA_RV32E)
 	ulong_t s2;	/* saved register */
 	ulong_t s3;	/* saved register */
 	ulong_t s4;	/* saved register */
@@ -71,6 +71,7 @@ struct _callee_saved {
 	ulong_t s9;	/* saved register */
 	ulong_t s10;	/* saved register */
 	ulong_t s11;	/* saved register */
+#endif
 
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
 	uint32_t fcsr;		/* Control and status register */
@@ -90,16 +91,21 @@ struct _callee_saved {
 };
 typedef struct _callee_saved _callee_saved_t;
 
-struct _thread_arch {
-#ifdef CONFIG_PMP_STACK_GUARD
-	ulong_t s_pmpcfg[PMP_CFG_CSR_NUM_FOR_STACK_GUARD];
-	ulong_t s_pmpaddr[PMP_REGION_NUM_FOR_STACK_GUARD];
-#endif
+#define PMP_M_MODE_SLOTS 8	/* 8 is plenty enough for m-mode */
 
+struct _thread_arch {
 #ifdef CONFIG_USERSPACE
 	ulong_t priv_stack_start;
-	ulong_t u_pmpcfg[RISCV_PMP_CFG_NUM];
-	ulong_t u_pmpaddr[CONFIG_PMP_SLOT];
+	ulong_t u_mode_pmpaddr_regs[CONFIG_PMP_SLOTS];
+	ulong_t u_mode_pmpcfg_regs[CONFIG_PMP_SLOTS / sizeof(ulong_t)];
+	unsigned int u_mode_pmp_domain_offset;
+	unsigned int u_mode_pmp_end_index;
+	unsigned int u_mode_pmp_update_nr;
+#endif
+#ifdef CONFIG_PMP_STACK_GUARD
+	unsigned int m_mode_pmp_end_index;
+	ulong_t m_mode_pmpaddr_regs[PMP_M_MODE_SLOTS];
+	ulong_t m_mode_pmpcfg_regs[PMP_M_MODE_SLOTS / sizeof(ulong_t)];
 #endif
 };
 

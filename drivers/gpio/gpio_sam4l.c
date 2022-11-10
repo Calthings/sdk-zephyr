@@ -8,11 +8,11 @@
 #define DT_DRV_COMPAT atmel_sam4l_gpio
 
 #include <errno.h>
-#include <kernel.h>
-#include <device.h>
-#include <init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 #include <soc.h>
-#include <drivers/gpio.h>
+#include <zephyr/drivers/gpio.h>
 
 #include "gpio_utils.h"
 
@@ -243,7 +243,7 @@ int gpio_sam_init(const struct device *dev)
 			    gpio_sam_isr,				\
 			    DEVICE_DT_INST_GET(n), 0);			\
 		irq_enable(DT_INST_IRQ_BY_IDX(n, m, irq));		\
-	} while (0)
+	} while (false)
 
 #define GPIO_SAM_INIT(n)						\
 	static void port_##n##_sam_config_func(const struct device *dev);\

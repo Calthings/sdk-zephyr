@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <irq_offload.h>
-#include <sys/mutex.h>
+#include <zephyr/ztest.h>
+#include <zephyr/irq_offload.h>
+#include <zephyr/sys/mutex.h>
 
 
 /**

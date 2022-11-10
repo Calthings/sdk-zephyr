@@ -3,10 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <ztest.h>
+#include <zephyr/ztest.h>
 #include <zephyr/types.h>
-#include <sys/time_units.h>
-#include <random/rand32.h>
+#include <zephyr/sys/time_units.h>
+#include <zephyr/random/rand32.h>
 
 #define NUM_RANDOM 100
 

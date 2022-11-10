@@ -13,17 +13,21 @@
 #include <rom/ets_sys.h>
 #include <esp_attr.h>
 
-#include <drivers/interrupt_controller/intc_esp32c3.h>
-#include <drivers/timer/system_timer.h>
-#include <sys_clock.h>
+#include <zephyr/drivers/interrupt_controller/intc_esp32c3.h>
+#include <zephyr/drivers/timer/system_timer.h>
+#include <zephyr/sys_clock.h>
 #include <soc.h>
-#include <device.h>
+#include <zephyr/device.h>
 
 #define CYC_PER_TICK ((uint32_t)((uint64_t)sys_clock_hw_cycles_per_sec()	\
 			      / (uint64_t)CONFIG_SYS_CLOCK_TICKS_PER_SEC))
 #define MAX_CYC 0xffffffffu
 #define MAX_TICKS ((MAX_CYC - CYC_PER_TICK) / CYC_PER_TICK)
 #define MIN_DELAY 1000
+
+#if defined(CONFIG_TEST)
+const int32_t z_sys_timer_irq_for_test = DT_IRQN(DT_NODELABEL(systimer0));
+#endif
 
 #define TICKLESS IS_ENABLED(CONFIG_TICKLESS_KERNEL)
 

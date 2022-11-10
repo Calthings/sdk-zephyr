@@ -11,16 +11,16 @@
 #include <version.h>
 #include <errno.h>
 
-#include <sys/util.h>
-#include <sys/byteorder.h>
-#include <sys/atomic.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/atomic.h>
 
-#include <drivers/bluetooth/hci_driver.h>
+#include <zephyr/drivers/bluetooth/hci_driver.h>
 
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_vs.h>
-#include <bluetooth/buf.h>
-#include <bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/hci_vs.h>
+#include <zephyr/bluetooth/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
 
 #include "../host/hci_ecc.h"
 
@@ -31,6 +31,9 @@
 
 #include "hal/ecb.h"
 #include "hal/ccm.h"
+#include "hal/ticker.h"
+
+#include "ticker/ticker.h"
 
 #include "ll_sw/pdu.h"
 
@@ -58,6 +61,7 @@
 #include "ll_sw/ull_conn_types.h"
 #include "ll_sw/ull_iso_types.h"
 #include "ll_sw/ull_conn_iso_types.h"
+#include "ll_sw/ull_conn_iso_internal.h"
 #include "ll_sw/ull_df_types.h"
 
 #include "ll_sw/ull_adv_internal.h"
@@ -89,6 +93,8 @@
 #define LOG_MODULE_NAME bt_ctlr_hci
 #include "common/log.h"
 #include "hal/debug.h"
+
+#define STR_NULL_TERMINATOR 0x00
 
 /* opcode of the HCI command currently being processed. The opcode is stored
  * by hci_cmd_handle() and then used during the creation of cmd complete and
@@ -203,6 +209,9 @@ static uint32_t cis_pending_count;
 static uint64_t event_mask = DEFAULT_EVENT_MASK;
 static uint64_t event_mask_page_2 = DEFAULT_EVENT_MASK_PAGE_2;
 static uint64_t le_event_mask = DEFAULT_LE_EVENT_MASK;
+#if defined(CONFIG_BT_HCI_VS_EVT)
+static uint64_t vs_events_mask = DEFAULT_VS_EVT_MASK;
+#endif /* CONFIG_BT_HCI_VS_EVT */
 
 static struct net_buf *cmd_complete_status(uint8_t status);
 
@@ -328,6 +337,19 @@ static void *meta_evt(struct net_buf *buf, uint8_t subevt, uint8_t melen)
 	return net_buf_add(buf, melen);
 }
 
+#if defined(CONFIG_BT_HCI_VS_EVT)
+static void *vs_event(struct net_buf *buf, uint8_t subevt, uint8_t evt_len)
+{
+	struct bt_hci_evt_vs *evt;
+
+	hci_evt_create(buf, BT_HCI_EVT_VENDOR, sizeof(*evt) + evt_len);
+	evt = net_buf_add(buf, sizeof(*evt));
+	evt->subevent = subevt;
+
+	return net_buf_add(buf, evt_len);
+}
+#endif /* CONFIG_BT_HCI_VS_EVT */
+
 #if defined(CONFIG_BT_HCI_MESH_EXT)
 static void *mesh_evt(struct net_buf *buf, uint8_t subevt, uint8_t melen)
 {
@@ -451,6 +473,8 @@ static void reset(struct net_buf *buf, struct net_buf **evt)
 		k_poll_signal_raise(hbuf_signal, 0x0);
 	}
 #endif
+
+	hci_recv_fifo_reset();
 }
 
 #if defined(CONFIG_BT_HCI_ACL_FLOW_CONTROL)
@@ -600,7 +624,7 @@ static void write_auth_payload_timeout(struct net_buf *buf,
 }
 #endif /* CONFIG_BT_CTLR_LE_PING */
 
-#if defined(CONFIG_BT_CTLR_ISO)
+#if defined(CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO)
 static void configure_data_path(struct net_buf *buf,
 				struct net_buf **evt)
 {
@@ -620,7 +644,7 @@ static void configure_data_path(struct net_buf *buf,
 	rp = hci_cmd_complete(evt, sizeof(*rp));
 	rp->status = status;
 }
-#endif /* CONFIG_BT_CTLR_ISO */
+#endif /* CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO */
 
 #if defined(CONFIG_BT_CONN)
 static void read_tx_power_level(struct net_buf *buf, struct net_buf **evt)
@@ -690,11 +714,11 @@ static int ctrl_bb_cmd_handle(uint16_t  ocf, struct net_buf *cmd,
 		break;
 #endif /* CONFIG_BT_CTLR_LE_PING */
 
-#if defined(CONFIG_BT_CTLR_ISO)
+#if defined(CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO)
 	case BT_OCF(BT_HCI_OP_CONFIGURE_DATA_PATH):
 		configure_data_path(cmd, evt);
 		break;
-#endif /* CONFIG_BT_CTLR_ISO */
+#endif /* CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO */
 
 	default:
 		return -EINVAL;
@@ -928,6 +952,23 @@ static void read_supported_commands(struct net_buf *buf, struct net_buf **evt)
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 	/* LE Read Antenna Information */
 	rp->commands[40] |= BIT(4);
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_TX)
+	/* LE Set Connection CTE Transmit Parameters */
+	rp->commands[40] |= BIT(1);
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_TX */
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_RX)
+	/* LE Set Connection CTE Receive Parameters */
+	rp->commands[40] |= BIT(0);
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RX */
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_REQ)
+	/* LE Connection CTE Request Enable */
+	rp->commands[40] |= BIT(2);
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_REQ */
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_RSP)
+	/* LE Connection CTE Response Enable */
+	rp->commands[40] |= BIT(3);
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RSP */
+
 #endif /* CONFIG_BT_CTLR_DF */
 
 #if defined(CONFIG_BT_HCI_RAW) && defined(CONFIG_BT_TINYCRYPT_ECC)
@@ -969,8 +1010,8 @@ static void read_supported_commands(struct net_buf *buf, struct net_buf **evt)
 #if defined(CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO)
 	/* Read Supported Codecs */
 	rp->commands[29] |= BIT(5);
-	/* Read Supported Codecs [v2], Codec Capabilities, Controller Delay */
-	rp->commands[45] |= BIT(2) | BIT(3) | BIT(4);
+	/* Read Supported Codecs [v2], Codec Capabilities, Controller Delay, Configure Data Path */
+	rp->commands[45] |= BIT(2) | BIT(3) | BIT(4) | BIT(5);
 #endif /* CONFIG_BT_CTLR_HCI_CODEC_AND_DELAY_INFO */
 }
 
@@ -2812,6 +2853,28 @@ static void le_df_set_cl_iq_sampling_enable(struct net_buf *buf, struct net_buf 
 }
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
+#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX) || defined(CONFIG_BT_CTLR_DTM_HCI_DF_IQ_REPORT) ||      \
+	defined(CONFIG_BT_CTLR_DF_CONN_CTE_RX)
+static int8_t iq_convert_12_to_8_bits(int16_t data)
+{
+	if (data == IQ_SAMPLE_SATURATED_16_BIT) {
+		return IQ_SAMPLE_SATURATED_8_BIT;
+	}
+
+#if defined(CONFIG_BT_CTLR_DF_IQ_SAMPLES_CONVERT_USE_8_LSB)
+	return (data > INT8_MAX || data < INT8_MIN) ? IQ_SAMPLE_SATURATED_8_BIT
+						    : IQ_SAMPLE_CONVERT_12_TO_8_BIT(data);
+#else  /* !CONFIG_BT_CTLR_DF_IQ_SAMPLES_CONVERT_USE_8_LSB */
+	int16_t data_conv = IQ_SAMPLE_CONVERT_12_TO_8_BIT(data);
+
+	return (data_conv > INT8_MAX || data_conv < INT8_MIN) ? IQ_SAMPLE_SATURATED_8_BIT
+							      : (int8_t)data_conv;
+#endif /* CONFIG_BT_CTLR_DF_IQ_SAMPLES_CONVERT_USE_8_LSB */
+}
+#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX || CONFIG_BT_CTLR_DTM_HCI_DF_IQ_REPORT
+	* || CONFIG_BT_CTLR_DF_CONN_CTE_RX
+	*/
+
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX) || defined(CONFIG_BT_CTLR_DTM_HCI_DF_IQ_REPORT)
 static void le_df_connectionless_iq_report(struct pdu_data *pdu_rx,
 					   struct node_rx_pdu *node_rx,
@@ -2873,11 +2936,15 @@ static void le_df_connectionless_iq_report(struct pdu_data *pdu_rx,
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
-	/* If there are no IQ samples due to insufficient resources
-	 * HCI event should inform about it by storing single octet with
-	 * special I_sample and Q_sample data.
+	/* If packet status does not indicate insufficient resources for IQ samples and for
+	 * some reason sample_count is zero, inform Host about lack of valid IQ samples by
+	 * storing single I_sample and Q_sample with BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE value.
 	 */
-	samples_cnt = (!iq_report->sample_count ? 1 : iq_report->sample_count);
+	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		samples_cnt = 0U;
+	} else {
+		samples_cnt = MAX(1, iq_report->sample_count);
+	}
 
 	sep = meta_evt(buf, BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT,
 		       (sizeof(*sep) +
@@ -2904,18 +2971,21 @@ static void le_df_connectionless_iq_report(struct pdu_data *pdu_rx,
 
 	sep->packet_status = iq_report->packet_status;
 
-	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
-		sep->sample[0].i = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
-		sep->sample[0].q = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
-		sep->sample_count = 0U;
-	} else {
-		for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
-			sep->sample[idx].i = IQ_CONVERT_12_TO_8_BIT(iq_report->sample[idx].i);
-			sep->sample[idx].q = IQ_CONVERT_12_TO_8_BIT(iq_report->sample[idx].q);
+	if (iq_report->packet_status != BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		if (iq_report->sample_count == 0U) {
+			sep->sample[0].i = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
+			sep->sample[0].q = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
+		} else {
+			for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
+				sep->sample[idx].i =
+					iq_convert_12_to_8_bits(iq_report->sample[idx].i);
+				sep->sample[idx].q =
+					iq_convert_12_to_8_bits(iq_report->sample[idx].q);
+			}
 		}
-
-		sep->sample_count = samples_cnt;
 	}
+
+	sep->sample_count = samples_cnt;
 }
 #endif /* defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX) || defined(CONFIG_BT_CTLR_DTM_HCI_DF_IQ_REPORT) */
 
@@ -2998,10 +3068,15 @@ static void le_df_connection_iq_report(struct node_rx_pdu *node_rx, struct net_b
 		return;
 	}
 
-	/* If there are no IQ samples due to insufficient resources HCI event should inform about
-	 * it by store single octet with special I_sample and Q_sample data.
+	/* If packet status does not indicate insufficient resources for IQ samples and for
+	 * some reason sample_count is zero, inform Host about lack of valid IQ samples by
+	 * storing single I_sample and Q_sample with BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE value.
 	 */
-	samples_cnt = MAX(1, iq_report->sample_count);
+	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		samples_cnt = 0;
+	} else {
+		samples_cnt = MAX(1, iq_report->sample_count);
+	}
 
 	sep = meta_evt(buf, BT_HCI_EVT_LE_CONNECTION_IQ_REPORT,
 		       (sizeof(*sep) + (samples_cnt * sizeof(struct bt_hci_le_iq_sample))));
@@ -3027,17 +3102,21 @@ static void le_df_connection_iq_report(struct node_rx_pdu *node_rx, struct net_b
 
 	sep->packet_status = iq_report->packet_status;
 
-	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
-		sep->sample[0].i = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
-		sep->sample[0].q = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
-		sep->sample_count = 0U;
-	} else {
-		for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
-			sep->sample[idx].i = IQ_CONVERT_12_TO_8_BIT(iq_report->sample[idx].i);
-			sep->sample[idx].q = IQ_CONVERT_12_TO_8_BIT(iq_report->sample[idx].q);
+	if (iq_report->packet_status != BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		if (iq_report->sample_count == 0U) {
+			sep->sample[0].i = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
+			sep->sample[0].q = BT_HCI_LE_CTE_REPORT_NO_VALID_SAMPLE;
+		} else {
+			for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
+				sep->sample[idx].i =
+					iq_convert_12_to_8_bits(iq_report->sample[idx].i);
+				sep->sample[idx].q =
+					iq_convert_12_to_8_bits(iq_report->sample[idx].q);
+			}
 		}
-		sep->sample_count = samples_cnt;
 	}
+
+	sep->sample_count = samples_cnt;
 }
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RX */
 
@@ -3273,6 +3352,24 @@ static void le_set_ext_adv_param(struct net_buf *buf, struct net_buf **evt)
 		return;
 	}
 
+	min_interval = sys_get_le24(cmd->prim_min_interval);
+
+	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK)) {
+		const uint32_t max_interval =
+					sys_get_le24(cmd->prim_max_interval);
+
+		/* Compare advertising interval maximum with implementation
+		 * supported advertising interval maximum value defined in the
+		 * Kconfig CONFIG_BT_CTLR_ADV_INTERVAL_MAX.
+		 */
+		if ((min_interval > max_interval) ||
+		    (min_interval < BT_HCI_LE_PRIM_ADV_INTERVAL_MIN) ||
+		    (max_interval > CONFIG_BT_CTLR_ADV_INTERVAL_MAX)) {
+			*evt = cmd_complete_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
+			return;
+		}
+	}
+
 	status = ll_adv_set_by_hci_handle_get_or_new(cmd->handle, &handle);
 	if (status) {
 		*evt = cmd_complete_status(status);
@@ -3280,7 +3377,6 @@ static void le_set_ext_adv_param(struct net_buf *buf, struct net_buf **evt)
 	}
 
 	evt_prop = sys_le16_to_cpu(cmd->props);
-	min_interval = sys_get_le24(cmd->prim_min_interval);
 	tx_pwr = cmd->tx_power;
 	phy_p = BIT(cmd->prim_adv_phy - 1);
 	phy_s = BIT(cmd->sec_adv_phy - 1);
@@ -3380,7 +3476,7 @@ static void le_set_ext_adv_enable(struct net_buf *buf, struct net_buf **evt)
 		status = ll_adv_enable(handle, cmd->enable, 0, 0, 0, 0, 0);
 #else /* !CONFIG_BT_HCI_MESH_EXT */
 		status = ll_adv_enable(handle, cmd->enable,
-				       s->duration, s->max_ext_adv_evts);
+				       sys_le16_to_cpu(s->duration), s->max_ext_adv_evts);
 #endif /* !CONFIG_BT_HCI_MESH_EXT */
 		if (status) {
 			/* TODO: how to handle succeeded ones before this
@@ -3464,7 +3560,7 @@ static void le_clear_adv_sets(struct net_buf *buf, struct net_buf **evt)
 static void le_set_per_adv_param(struct net_buf *buf, struct net_buf **evt)
 {
 	struct bt_hci_cp_le_set_per_adv_param *cmd = (void *)buf->data;
-	uint16_t interval;
+	uint16_t max_interval;
 	uint16_t flags;
 	uint8_t status;
 	uint8_t handle;
@@ -3473,16 +3569,34 @@ static void le_set_per_adv_param(struct net_buf *buf, struct net_buf **evt)
 		return;
 	}
 
+	max_interval = sys_le16_to_cpu(cmd->max_interval);
+
+	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK)) {
+		const uint32_t min_interval =
+					sys_le16_to_cpu(cmd->min_interval);
+
+		/* Compare periodic advertising interval maximum with
+		 * implementation supported periodic advertising interval
+		 * maximum value defined in the Kconfig
+		 * CONFIG_BT_CTLR_ADV_PERIODIC_INTERVAL_MAX.
+		 */
+		if ((min_interval > max_interval) ||
+		    (min_interval < BT_HCI_LE_PER_ADV_INTERVAL_MIN) ||
+		    (max_interval > CONFIG_BT_CTLR_ADV_PERIODIC_INTERVAL_MAX)) {
+			*evt = cmd_complete_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
+			return;
+		}
+	}
+
 	status = ll_adv_set_by_hci_handle_get(cmd->handle, &handle);
 	if (status) {
 		*evt = cmd_complete_status(status);
 		return;
 	}
 
-	interval = sys_le16_to_cpu(cmd->max_interval);
 	flags = sys_le16_to_cpu(cmd->props);
 
-	status = ll_adv_sync_param_set(handle, interval, flags);
+	status = ll_adv_sync_param_set(handle, max_interval, flags);
 
 	*evt = cmd_complete_status(status);
 }
@@ -3557,7 +3671,7 @@ static void le_set_ext_scan_param(struct net_buf *buf, struct net_buf **evt)
 
 	phys = cmd->phys;
 	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK) &&
-	    (phys > phys_bitmask)) {
+	    (((phys & phys_bitmask) == 0) || (phys & ~phys_bitmask))) {
 		*evt = cmd_complete_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
 
 		return;
@@ -3893,7 +4007,7 @@ static void le_ext_create_connection(struct net_buf *buf, struct net_buf **evt)
 
 	phys = cmd->phys;
 	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK) &&
-	    (phys > phys_bitmask)) {
+	    (((phys & phys_bitmask) == 0) || (phys & ~phys_bitmask))) {
 		*evt = cmd_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
 
 		return;
@@ -3951,8 +4065,9 @@ static void le_ext_create_connection(struct net_buf *buf, struct net_buf **evt)
 			uint8_t type;
 
 			type = (phy << 1);
-			/* NOTE: Pass invalid interval value to not start
-			 *       scanning using this scan instance.
+			/* NOTE: Pass invalid interval value to reset the PHY
+			 *       value in the scan instance so not to start
+			 *       scanning on the unselected PHY.
 			 */
 			status = ll_scan_params_set(type, 0, 0, 0, 0);
 		}
@@ -4742,6 +4857,330 @@ static void vs_read_tx_power_level(struct net_buf *buf, struct net_buf **evt)
 	rp->handle = sys_cpu_to_le16(handle);
 }
 #endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
+
+#if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
+/* A memory pool for vandor specific events for fatal error reporting purposes. */
+NET_BUF_POOL_FIXED_DEFINE(vs_err_tx_pool, 1, BT_BUF_EVT_RX_SIZE, 8, NULL);
+
+/* The alias for convenience of Controller HCI implementation. Controller is build for
+ * a particular architecture hence the alias will allow to avoid conditional compilation.
+ * Host may be not aware of hardware architecture the Controller is working on, hence
+ * all CPU data types for supported architectures should be available during build, hence
+ * the alias is defined here.
+ */
+#if defined(CONFIG_CPU_CORTEX_M)
+typedef struct bt_hci_vs_fata_error_cpu_data_cortex_m bt_hci_vs_fatal_error_cpu_data;
+
+static void vs_err_fatal_cpu_data_fill(bt_hci_vs_fatal_error_cpu_data *cpu_data,
+				       const z_arch_esf_t *esf)
+{
+	cpu_data->a1 = sys_cpu_to_le32(esf->basic.a1);
+	cpu_data->a2 = sys_cpu_to_le32(esf->basic.a2);
+	cpu_data->a3 = sys_cpu_to_le32(esf->basic.a3);
+	cpu_data->a4 = sys_cpu_to_le32(esf->basic.a4);
+	cpu_data->ip = sys_cpu_to_le32(esf->basic.ip);
+	cpu_data->lr = sys_cpu_to_le32(esf->basic.lr);
+	cpu_data->xpsr = sys_cpu_to_le32(esf->basic.xpsr);
+}
+#endif /* CONFIG_CPU_CORTEX_M */
+
+static struct net_buf *vs_err_evt_create(uint8_t subevt, uint8_t len)
+{
+	struct net_buf *buf;
+
+	buf = net_buf_alloc(&vs_err_tx_pool, K_FOREVER);
+	if (buf) {
+		struct bt_hci_evt_le_meta_event *me;
+		struct bt_hci_evt_hdr *hdr;
+
+		net_buf_reserve(buf, BT_BUF_RESERVE);
+		bt_buf_set_type(buf, BT_BUF_EVT);
+
+		hdr = net_buf_add(buf, sizeof(*hdr));
+		hdr->evt = BT_HCI_EVT_VENDOR;
+		hdr->len = len + sizeof(*me);
+
+		me = net_buf_add(buf, sizeof(*me));
+		me->subevent = subevt;
+	}
+
+	return buf;
+}
+
+struct net_buf *hci_vs_err_stack_frame(unsigned int reason, const z_arch_esf_t *esf)
+{
+	/* Prepare vendor specific HCI Fatal Error event */
+	struct bt_hci_vs_fatal_error_stack_frame *sf;
+	bt_hci_vs_fatal_error_cpu_data *cpu_data;
+	struct net_buf *buf;
+
+	buf = vs_err_evt_create(BT_HCI_EVT_VS_ERROR_DATA_TYPE_STACK_FRAME,
+				sizeof(*sf) + sizeof(*cpu_data));
+	if (buf != NULL) {
+		sf = net_buf_add(buf, (sizeof(*sf) + sizeof(*cpu_data)));
+		sf->reason = sys_cpu_to_le32(reason);
+		sf->cpu_type = BT_HCI_EVT_VS_ERROR_CPU_TYPE_CORTEX_M;
+
+		vs_err_fatal_cpu_data_fill(
+			(bt_hci_vs_fatal_error_cpu_data *)sf->cpu_data, esf);
+	} else {
+		BT_ERR("Can't create HCI Fatal Error event");
+	}
+
+	return buf;
+}
+
+static struct net_buf *hci_vs_err_trace_create(uint8_t data_type,
+					       const char *file_path,
+					       uint32_t line, uint64_t pc)
+{
+	uint32_t file_name_len = 0U, pos = 0U;
+	struct net_buf *buf = NULL;
+
+	if (file_path) {
+		/* Extract file name from a path */
+		while (file_path[file_name_len] != '\0') {
+			if (file_path[file_name_len] == '/') {
+				pos = file_name_len + 1;
+			}
+			file_name_len++;
+		}
+		file_path += pos;
+		file_name_len -= pos;
+
+		/* If file name was found in file_path, in other words: file_path is not empty
+		 * string and is not `foo/bar/`.
+		 */
+		if (file_name_len) {
+			/* Total data length: len = file name strlen + \0 + sizeof(line number)
+			 * Maximum length of an HCI event data is BT_BUF_EVT_RX_SIZE. If total data
+			 * length exceeds this maximum, truncate file name.
+			 */
+			uint32_t data_len = 1 + sizeof(line);
+
+			/* If a buffer is created for a TRACE data, include sizeof(pc) in total
+			 * length.
+			 */
+			if (data_type == BT_HCI_EVT_VS_ERROR_DATA_TYPE_TRACE) {
+				data_len += sizeof(pc);
+			}
+
+			if (data_len + file_name_len > BT_BUF_EVT_RX_SIZE) {
+				uint32_t overflow_len =
+					file_name_len + data_len - BT_BUF_EVT_RX_SIZE;
+
+				/* Truncate the file name length by number of overflow bytes */
+				file_name_len -= overflow_len;
+			}
+
+			/* Get total event data length including file name length */
+			data_len += file_name_len;
+
+			/* Prepare vendor specific HCI Fatal Error event */
+			buf = vs_err_evt_create(data_type, data_len);
+			if (buf != NULL) {
+				if (data_type == BT_HCI_EVT_VS_ERROR_DATA_TYPE_TRACE) {
+					net_buf_add_le64(buf, pc);
+				}
+				net_buf_add_mem(buf, file_path, file_name_len);
+				net_buf_add_u8(buf, STR_NULL_TERMINATOR);
+				net_buf_add_le32(buf, line);
+			} else {
+				BT_ERR("Can't create HCI Fatal Error event");
+			}
+		}
+	}
+
+	return buf;
+}
+
+struct net_buf *hci_vs_err_trace(const char *file, uint32_t line, uint64_t pc)
+{
+	return hci_vs_err_trace_create(BT_HCI_EVT_VS_ERROR_DATA_TYPE_TRACE, file, line, pc);
+}
+
+struct net_buf *hci_vs_err_assert(const char *file, uint32_t line)
+{
+	/* ASSERT data does not contain PC counter, because of that zero constant is used */
+	return hci_vs_err_trace_create(BT_HCI_EVT_VS_ERROR_DATA_TYPE_CTRL_ASSERT, file, line, 0U);
+}
+#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
+
+#if defined(CONFIG_BT_CTLR_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES)
+static void vs_le_df_connectionless_iq_report(struct pdu_data *pdu_rx, struct node_rx_pdu *node_rx,
+					      struct net_buf *buf)
+{
+	struct bt_hci_evt_vs_le_connectionless_iq_report *sep;
+	struct node_rx_iq_report *iq_report;
+	struct lll_sync *lll;
+	uint8_t samples_cnt;
+	int16_t rssi;
+	uint16_t sync_handle;
+	uint16_t per_evt_counter;
+	struct ll_sync_set *sync = NULL;
+
+	iq_report = (struct node_rx_iq_report *)node_rx;
+
+	if (!(vs_events_mask & BT_EVT_MASK_VS_LE_CONNECTIONLESS_IQ_REPORT)) {
+		return;
+	}
+
+	lll = iq_report->hdr.rx_ftr.param;
+
+	sync = HDR_LLL2ULL(lll);
+
+	/* TX LL thread has higher priority than RX thread. It may happen that
+	 * host successfully disables CTE sampling in the meantime.
+	 * It should be verified here, to avoid reporting IQ samples after
+	 * the functionality was disabled or if sync was lost.
+	 */
+	if (ull_df_sync_cfg_is_not_enabled(&lll->df_cfg) || !sync->timeout_reload) {
+		/* Drop further processing of the event. */
+		return;
+	}
+
+	/* Get the sync handle corresponding to the LLL context passed in the
+	 * node rx footer field.
+	 */
+	sync_handle = ull_sync_handle_get(sync);
+	per_evt_counter = iq_report->event_counter;
+
+	/* If packet status does not indicate insufficient resources for IQ samples and for
+	 * some reason sample_count is zero, inform Host about lack of valid IQ samples by
+	 * storing single I_sample and Q_sample with BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE
+	 * value.
+	 */
+	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		samples_cnt = 0U;
+	} else {
+		samples_cnt = MAX(1, iq_report->sample_count);
+	}
+
+	sep = vs_event(buf, BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
+		       (sizeof(*sep) + (samples_cnt * sizeof(struct bt_hci_le_iq_sample16))));
+
+	rssi = RSSI_DBM_TO_DECI_DBM(iq_report->hdr.rx_ftr.rssi);
+
+	sep->sync_handle = sys_cpu_to_le16(sync_handle);
+	sep->rssi = sys_cpu_to_le16(rssi);
+	sep->rssi_ant_id = iq_report->rssi_ant_id;
+	sep->cte_type = iq_report->cte_info.type;
+
+	sep->chan_idx = iq_report->chan_idx;
+	sep->per_evt_counter = sys_cpu_to_le16(per_evt_counter);
+
+	if (sep->cte_type == BT_HCI_LE_AOA_CTE) {
+		sep->slot_durations = iq_report->local_slot_durations;
+	} else if (sep->cte_type == BT_HCI_LE_AOD_CTE_1US) {
+		sep->slot_durations = BT_HCI_LE_ANTENNA_SWITCHING_SLOT_1US;
+	} else {
+		sep->slot_durations = BT_HCI_LE_ANTENNA_SWITCHING_SLOT_2US;
+	}
+
+	sep->packet_status = iq_report->packet_status;
+
+	if (iq_report->packet_status != BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		if (iq_report->sample_count == 0U) {
+			sep->sample[0].i = sys_cpu_to_le16(BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE);
+			sep->sample[0].q = sys_cpu_to_le16(BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE);
+		} else {
+			for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
+				sep->sample[idx].i = sys_cpu_to_le16(iq_report->sample[idx].i);
+				sep->sample[idx].q = sys_cpu_to_le16(iq_report->sample[idx].q);
+			}
+		}
+	}
+
+	sep->sample_count = samples_cnt;
+}
+#endif /* CONFIG_BT_CTLR_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES */
+
+#if defined(CONFIG_BT_CTLR_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES)
+static void vs_le_df_connection_iq_report(struct node_rx_pdu *node_rx, struct net_buf *buf)
+{
+	struct bt_hci_evt_vs_le_connection_iq_report *sep;
+	struct node_rx_iq_report *iq_report;
+	struct lll_conn *lll;
+	uint8_t samples_cnt;
+	uint8_t phy_rx;
+	int16_t rssi;
+
+	iq_report = (struct node_rx_iq_report *)node_rx;
+
+	if (!(vs_events_mask & BT_EVT_MASK_VS_LE_CONNECTION_IQ_REPORT)) {
+		return;
+	}
+
+	lll = iq_report->hdr.rx_ftr.param;
+
+#if defined(CONFIG_BT_CTLR_PHY)
+	phy_rx = lll->phy_rx;
+
+	/* Make sure the report is generated for connection on PHY UNCODED */
+	LL_ASSERT(phy_rx != PHY_CODED);
+#else
+	phy_rx = PHY_1M;
+#endif /* CONFIG_BT_CTLR_PHY */
+
+	/* TX LL thread has higher priority than RX thread. It may happen that host succefully
+	 * disables CTE sampling in the meantime. It should be verified here, to avoid reporing
+	 * IQ samples after the functionality was disabled.
+	 */
+	if (ull_df_conn_cfg_is_not_enabled(&lll->df_rx_cfg)) {
+		/* Dropp further processing of the event. */
+		return;
+	}
+
+	/* If packet status does not indicate insufficient resources for IQ samples and for
+	 * some reason sample_count is zero, inform Host about lack of valid IQ samples by
+	 * storing single I_sample and Q_sample with BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE value.
+	 */
+	if (iq_report->packet_status == BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		samples_cnt = 0U;
+	} else {
+		samples_cnt = MAX(1, iq_report->sample_count);
+	}
+
+	sep = vs_event(buf, BT_HCI_EVT_VS_LE_CONNECTION_IQ_REPORT,
+			(sizeof(*sep) + (samples_cnt * sizeof(struct bt_hci_le_iq_sample16))));
+
+	rssi = RSSI_DBM_TO_DECI_DBM(iq_report->hdr.rx_ftr.rssi);
+
+	sep->conn_handle = sys_cpu_to_le16(iq_report->hdr.handle);
+	sep->rx_phy = phy_rx;
+	sep->rssi = sys_cpu_to_le16(rssi);
+	sep->rssi_ant_id = iq_report->rssi_ant_id;
+	sep->cte_type = iq_report->cte_info.type;
+
+	sep->data_chan_idx = iq_report->chan_idx;
+	sep->conn_evt_counter = sys_cpu_to_le16(iq_report->event_counter);
+
+	if (sep->cte_type == BT_HCI_LE_AOA_CTE) {
+		sep->slot_durations = iq_report->local_slot_durations;
+	} else if (sep->cte_type == BT_HCI_LE_AOD_CTE_1US) {
+		sep->slot_durations = BT_HCI_LE_ANTENNA_SWITCHING_SLOT_1US;
+	} else {
+		sep->slot_durations = BT_HCI_LE_ANTENNA_SWITCHING_SLOT_2US;
+	}
+
+	sep->packet_status = iq_report->packet_status;
+
+	if (iq_report->packet_status != BT_HCI_LE_CTE_INSUFFICIENT_RESOURCES) {
+		if (iq_report->sample_count == 0U) {
+			sep->sample[0].i = sys_cpu_to_le16(BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE);
+			sep->sample[0].q = sys_cpu_to_le16(BT_HCI_VS_LE_CTE_REPORT_NO_VALID_SAMPLE);
+		} else {
+			for (uint8_t idx = 0U; idx < samples_cnt; ++idx) {
+				sep->sample[idx].i = sys_cpu_to_le16(iq_report->sample[idx].i);
+				sep->sample[idx].q = sys_cpu_to_le16(iq_report->sample[idx].q);
+			}
+		}
+	}
+
+	sep->sample_count = samples_cnt;
+}
+#endif /* CONFIG_BT_CTLR_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES */
+
 #endif /* CONFIG_BT_HCI_VS_EXT */
 
 #if defined(CONFIG_BT_HCI_MESH_EXT)
@@ -5125,15 +5564,21 @@ int hci_acl_handle(struct net_buf *buf, struct net_buf **evt)
 int hci_iso_handle(struct net_buf *buf, struct net_buf **evt)
 {
 	struct bt_hci_iso_data_hdr *iso_data_hdr;
+	struct isoal_sdu_tx sdu_frag_tx;
 	struct bt_hci_iso_hdr *iso_hdr;
-	uint16_t stream_handle;
-	struct node_tx_iso *tx;
+	struct ll_iso_datapath *dp_in;
+	struct ll_iso_stream_hdr *hdr;
+	uint32_t *time_stamp;
 	uint16_t handle;
+	uint8_t pb_flag;
+	uint8_t ts_flag;
 	uint8_t flags;
-	uint16_t slen;
 	uint16_t len;
 
-	*evt = NULL;
+	iso_data_hdr = NULL;
+	*evt  = NULL;
+	hdr   = NULL;
+	dp_in = NULL;
 
 	if (buf->len < sizeof(*iso_hdr)) {
 		BT_ERR("No HCI ISO header");
@@ -5149,113 +5594,201 @@ int hci_iso_handle(struct net_buf *buf, struct net_buf **evt)
 		return -EINVAL;
 	}
 
-	/* assigning flags first because handle will be overwritten */
+	/* Assigning flags first because handle will be overwritten */
 	flags = bt_iso_flags(handle);
-	if (bt_iso_flags_ts(flags)) {
-		struct bt_hci_iso_ts_data_hdr *iso_ts_data_hdr;
-
-		iso_ts_data_hdr = net_buf_pull_mem(buf,
-						   sizeof(*iso_ts_data_hdr));
-	}
-
-	iso_data_hdr = net_buf_pull_mem(buf, sizeof(*iso_data_hdr));
-	slen = iso_data_hdr->slen;
-
-#if defined(CONFIG_BT_CTLR_ADV_ISO)
-	/* Check invalid BIS PDU length */
-	if (slen > LL_BIS_OCTETS_TX_MAX) {
-		BT_ERR("Invalid HCI ISO Data length");
-		return -EINVAL;
-	}
-
-	/* Get BIS stream handle and stream context */
+	pb_flag = bt_iso_flags_pb(flags);
+	ts_flag = bt_iso_flags_ts(flags);
 	handle = bt_iso_handle(handle);
-	if (handle < BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE) {
-		return -EINVAL;
-	}
-	stream_handle = handle - BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE;
 
-	struct lll_adv_iso_stream *stream;
-
-	stream = ull_adv_iso_stream_get(stream_handle);
-	if (!stream) {
-		BT_ERR("Invalid BIS stream");
-		return -EINVAL;
-	}
-
-	struct ll_adv_iso_set *adv_iso;
-
-	adv_iso = ull_adv_iso_by_stream_get(stream_handle);
-	if (!adv_iso) {
-		BT_ERR("No BIG associated with stream handle");
-		return -EINVAL;
-	}
-
-	/* Get free node tx */
-	tx = ll_iso_tx_mem_acquire();
-	if (!tx) {
-		BT_ERR("ISO Tx Buffer Overflow");
-		data_buf_overflow(evt, BT_OVERFLOW_LINK_ISO);
-		return -ENOBUFS;
-	}
-
-	struct pdu_bis *pdu = (void *)tx->pdu;
-
-	/* FIXME: Update to use correct LLID for BIS and CIS */
-	switch (bt_iso_flags_pb(flags)) {
-	case BT_ISO_SINGLE:
-		pdu->ll_id = PDU_BIS_LLID_COMPLETE_END;
-		break;
-	default:
-		ll_iso_tx_mem_release(tx);
-		return -EINVAL;
-	}
-
-	pdu->len = slen;
-	memcpy(pdu->payload, buf->data, slen);
-
-	struct lll_adv_iso *lll_iso;
-
-	lll_iso = &adv_iso->lll;
-
-	uint64_t pkt_seq_num;
-
-	pkt_seq_num = lll_iso->payload_count / lll_iso->bn;
-	if (((pkt_seq_num - stream->pkt_seq_num) & BIT64_MASK(39)) <=
-	    BIT64_MASK(38)) {
-		stream->pkt_seq_num = pkt_seq_num;
-	} else {
-		pkt_seq_num = stream->pkt_seq_num;
-	}
-
-	tx->payload_count = pkt_seq_num * lll_iso->bn;
-
-	stream->pkt_seq_num++;
-
-#else /* CONFIG_BT_CTLR_CONN_ISO */
-	/* FIXME: Add Connected ISO implementation */
-	stream_handle = 0U;
-
-	/* NOTE: Keeping the code below to pass compilation until Connected ISO
-	 *       integration.
+	/* Extract time stamp */
+	/* Set default to current time
+	 * BT Core V5.3 : Vol 6 Low Energy Controller : Part G IS0-AL:
+	 * 3.1 Time_Offset in framed PDUs :
+	 * The Controller transmitting a SDU may use any of the following
+	 * methods to determine the value of the SDU reference time:
+	 * -- A captured time stamp of the SDU
+	 * -- A time stamp provided by the higher layer
+	 * -- A computed time stamp based on a sequence counter provided by the
+	 *    higher layer (Not implemented)
+	 * -- Any other method of determining Time_Offset (Not implemented)
 	 */
-	/* Get free node tx */
-	tx = ll_iso_tx_mem_acquire();
-	if (!tx) {
-		BT_ERR("ISO Tx Buffer Overflow");
-		data_buf_overflow(evt, BT_OVERFLOW_LINK_ISO);
-		return -ENOBUFS;
+	if (ts_flag) {
+		/* Overwrite time stamp with HCI provided time stamp */
+		time_stamp = net_buf_pull_mem(buf, sizeof(*time_stamp));
+		len -= sizeof(*time_stamp);
+		sdu_frag_tx.time_stamp = *time_stamp;
+	} else {
+		sdu_frag_tx.time_stamp =
+			HAL_TICKER_TICKS_TO_US(ticker_ticks_now_get());
 	}
 
+	/* Extract ISO data header if included (PB_Flag 0b00 or 0b10) */
+	if ((pb_flag & 0x01) == 0) {
+		iso_data_hdr = net_buf_pull_mem(buf, sizeof(*iso_data_hdr));
+		len -= sizeof(*iso_data_hdr);
+		sdu_frag_tx.packet_sn = iso_data_hdr->sn;
+		sdu_frag_tx.iso_sdu_length = iso_data_hdr->slen;
+	} else {
+		sdu_frag_tx.packet_sn = 0;
+		sdu_frag_tx.iso_sdu_length = 0;
+	}
+
+	/* Packet boudary flags should be bitwise identical to the SDU state
+	 * 0b00 BT_ISO_START
+	 * 0b01 BT_ISO_CONT
+	 * 0b10 BT_ISO_SINGLE
+	 * 0b11 BT_ISO_END
+	 */
+	sdu_frag_tx.sdu_state = pb_flag;
+	/* Fill in SDU buffer fields */
+	sdu_frag_tx.dbuf = buf->data;
+	sdu_frag_tx.size = len;
+
+#if defined(CONFIG_BT_CTLR_CONN_ISO)
+	/* Extract source handle from CIS or BIS handle by way of header and
+	 * data path
+	 */
+	if (IS_CIS_HANDLE(handle)) {
+		struct ll_conn_iso_stream *cis =
+			ll_iso_stream_connected_get(handle);
+		if (!cis) {
+			return -EINVAL;
+		}
+
+		struct ll_conn_iso_group *cig = cis->group;
+
+		hdr = &(cis->hdr);
+
+		/* Set target event as the current event. This might cause some
+		 * misalignment between SDU interval and ISO interval in the
+		 * case of a burst from the application or late release. However
+		 * according to the specifications:
+		 * BT Core V5.3 : Vol 6 Low Energy Controller : Part B LL Spec:
+		 * 4.5.13.3 Connected Isochronous Data:
+		 * This burst is associated with the corresponding CIS event but
+		 * the payloads may be transmitted in later events as well.
+		 * If flush timeout is greater than one, use the current event,
+		 * otherwise postpone to the next.
+		 *
+		 * TODO: Calculate the best possible target event based on CIS
+		 * reference, FT and event_count.
+		 */
+		sdu_frag_tx.target_event = cis->lll.event_count +
+			(cis->lll.tx.flush_timeout > 1 ? 0 : 1);
+
+		sdu_frag_tx.cig_ref_point = cig->cig_ref_point;
+
+		/* Get controller's input data path for CIS */
+		dp_in = hdr->datapath_in;
+		if (!dp_in || dp_in->path_id != BT_HCI_DATAPATH_ID_HCI) {
+			BT_ERR("Input data path not set for HCI");
+			return -EINVAL;
+		}
+
+		/* Get input data path's source handle */
+		isoal_source_handle_t source = dp_in->source_hdl;
+
+		/* Start Fragmentation */
+		if (isoal_tx_sdu_fragment(source, &sdu_frag_tx)) {
+			return -EINVAL;
+		}
+
+		/* TODO: Assign *evt if an immediate response is required */
+		return 0;
+	}
 #endif /* CONFIG_BT_CTLR_CONN_ISO */
 
-	if (ll_iso_tx_mem_enqueue(stream_handle, tx)) {
-		BT_ERR("Invalid ISO Tx Enqueue");
-		ll_iso_tx_mem_release(tx);
-		return -EINVAL;
-	}
+#if defined(CONFIG_BT_CTLR_ADV_ISO)
+	if (IS_ADV_ISO_HANDLE(handle)) {
+		/* FIXME: Use ISOAL */
+		struct node_tx_iso *tx;
+		uint16_t stream_handle;
+		uint16_t slen;
 
-	return 0;
+		/* FIXME: Code only expects header present */
+		slen = iso_data_hdr ? iso_data_hdr->slen : 0;
+
+		/* Check invalid BIS PDU length */
+		if (slen > LL_BIS_OCTETS_TX_MAX) {
+			BT_ERR("Invalid HCI ISO Data length");
+			return -EINVAL;
+		}
+
+		/* Get BIS stream handle and stream context */
+		handle = bt_iso_handle(handle);
+		if (handle < BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE) {
+			return -EINVAL;
+		}
+		stream_handle = handle - BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE;
+
+		struct lll_adv_iso_stream *stream;
+
+		stream = ull_adv_iso_stream_get(stream_handle);
+		if (!stream) {
+			BT_ERR("Invalid BIS stream");
+			return -EINVAL;
+		}
+
+		struct ll_adv_iso_set *adv_iso;
+
+		adv_iso = ull_adv_iso_by_stream_get(stream_handle);
+		if (!adv_iso) {
+			BT_ERR("No BIG associated with stream handle");
+			return -EINVAL;
+		}
+
+		/* Get free node tx */
+		tx = ll_iso_tx_mem_acquire();
+		if (!tx) {
+			BT_ERR("ISO Tx Buffer Overflow");
+			data_buf_overflow(evt, BT_OVERFLOW_LINK_ISO);
+			return -ENOBUFS;
+		}
+
+		struct pdu_bis *pdu = (void *)tx->pdu;
+
+		/* FIXME: Update to use correct LLID for BIS and CIS */
+		switch (bt_iso_flags_pb(flags)) {
+		case BT_ISO_SINGLE:
+			pdu->ll_id = PDU_BIS_LLID_COMPLETE_END;
+			break;
+		default:
+			ll_iso_tx_mem_release(tx);
+			return -EINVAL;
+		}
+
+		pdu->len = slen;
+		memcpy(pdu->payload, buf->data, slen);
+
+		struct lll_adv_iso *lll_iso;
+
+		lll_iso = &adv_iso->lll;
+
+		uint64_t pkt_seq_num;
+
+		pkt_seq_num = lll_iso->payload_count / lll_iso->bn;
+		if (((pkt_seq_num - stream->pkt_seq_num) & BIT64_MASK(39)) <=
+		BIT64_MASK(38)) {
+			stream->pkt_seq_num = pkt_seq_num;
+		} else {
+			pkt_seq_num = stream->pkt_seq_num;
+		}
+
+		tx->payload_count = pkt_seq_num * lll_iso->bn;
+
+		stream->pkt_seq_num++;
+
+		if (ll_iso_tx_mem_enqueue(stream_handle, tx, NULL)) {
+			BT_ERR("Invalid ISO Tx Enqueue");
+			ll_iso_tx_mem_release(tx);
+			return -EINVAL;
+		}
+
+		return 0;
+	}
+#endif /* CONFIG_BT_CTLR_ADV_ISO */
+
+	return -EINVAL;
 }
 #endif /* CONFIG_BT_CTLR_ADV_ISO || CONFIG_BT_CTLR_CONN_ISO */
 
@@ -6119,7 +6652,6 @@ static void le_ext_adv_report(struct pdu_data *pdu_data,
 	const uint8_t *data = NULL;
 	uint8_t scan_data_len = 0U;
 	uint8_t adv_addr_type = 0U;
-	bool direct_report = false;
 	uint8_t sec_phy_scan = 0U;
 	uint8_t *adv_addr = NULL;
 	uint8_t data_status = 0U;
@@ -6226,11 +6758,21 @@ static void le_ext_adv_report(struct pdu_data *pdu_data,
 			bt_addr_le_t addr;
 
 			lll = node_rx->hdr.rx_ftr.param;
+
+#if defined(CONFIG_BT_CTLR_EXT_SCAN_FP)
 			direct_addr_type_curr =
 				ext_adv_direct_addr_type(lll,
 							 direct_resolved_curr,
 							 direct_report_curr,
 							 adv->rx_addr, ptr);
+#else /* !CONFIG_BT_CTLR_EXT_SCAN_FP */
+			direct_addr_type_curr =
+				ext_adv_direct_addr_type(lll,
+							 direct_resolved_curr,
+							 false, adv->rx_addr,
+							 ptr);
+#endif /* !CONFIG_BT_CTLR_EXT_SCAN_FP */
+
 			direct_addr_curr = ptr;
 			ptr += BDADDR_SIZE;
 
@@ -6351,10 +6893,6 @@ no_ext_hdr:
 			rl_idx = rl_idx_curr;
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
-#if defined(CONFIG_BT_CTLR_EXT_SCAN_FP)
-			direct_report = direct_report_curr;
-#endif /* CONFIG_BT_CTLR_EXT_SCAN_FP */
-
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC) && \
 	defined(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST)
 			devmatch = devmatch_curr;
@@ -6403,12 +6941,6 @@ no_ext_hdr:
 				rl_idx = rl_idx_curr;
 			}
 #endif /* CONFIG_BT_CTLR_PRIVACY */
-
-#if defined(CONFIG_BT_CTLR_EXT_SCAN_FP)
-			if (!direct_report) {
-				direct_report = direct_report_curr;
-			}
-#endif /* CONFIG_BT_CTLR_EXT_SCAN_FP */
 
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC) && \
 	defined(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST)
@@ -7549,7 +8081,11 @@ static void encode_control(struct node_rx_pdu *node_rx,
 
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
 	case NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT:
+#if defined(CONFIG_BT_CTLR_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES)
+		vs_le_df_connectionless_iq_report(pdu_data, node_rx, buf);
+#else
 		le_df_connectionless_iq_report(pdu_data, node_rx, buf);
+#endif /* CONFIG_BT_CTLR_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES */
 		break;
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
@@ -7647,7 +8183,11 @@ static void encode_control(struct node_rx_pdu *node_rx,
 
 #if defined(CONFIG_BT_CTLR_DF_CONN_CTE_RX)
 	case NODE_RX_TYPE_CONN_IQ_SAMPLE_REPORT:
+#if defined(CONFIG_BT_CTLR_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES)
+		vs_le_df_connection_iq_report(node_rx, buf);
+#else
 		le_df_connection_iq_report(node_rx, buf);
+#endif /* CONFIG_BT_CTLR_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES */
 		return;
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RX */
 #endif /* CONFIG_BT_CONN */
@@ -7776,7 +8316,11 @@ static void le_unknown_rsp(struct pdu_data *pdu_data, uint16_t handle,
 		le_remote_feat_complete(BT_HCI_ERR_UNSUPP_REMOTE_FEATURE,
 					    NULL, handle, buf);
 		break;
-
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_REQ)
+	case PDU_DATA_LLCTRL_TYPE_CTE_REQ:
+		le_df_cte_req_failed(BT_HCI_ERR_UNSUPP_REMOTE_FEATURE, handle, buf);
+		break;
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_REQ */
 	default:
 		BT_WARN("type: 0x%02x",	pdu_data->llctrl.unknown_rsp.type);
 		break;

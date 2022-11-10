@@ -25,6 +25,11 @@ void ull_llcp_init(struct ll_conn *conn);
  */
 void ull_cp_state_set(struct ll_conn *conn, uint8_t state);
 
+/*
+ * @brief Update 'global' tx buffer allowance
+ */
+void ull_cp_update_tx_buffer_queue(struct ll_conn *conn);
+
 /**
  *
  */
@@ -36,6 +41,16 @@ void ull_cp_release_tx(struct ll_conn *conn, struct node_tx *tx);
 void ull_cp_release_ntf(struct node_rx_pdu *ntf);
 
 /**
+ * @brief Procedure Response Timeout Check
+ * @param elapsed_event The number of elapsed events.
+ * @param[out] error_code The error code for this timeout.
+ * @return 0 on success, -ETIMEDOUT if timer expired.
+ */
+int ull_cp_prt_elapse(struct ll_conn *conn, uint16_t elapsed_event, uint8_t *error_code);
+
+void ull_cp_prt_reload_set(struct ll_conn *conn, uint32_t conn_intv);
+
+/**
  * @brief Run pending LL Control Procedures.
  */
 void ull_cp_run(struct ll_conn *conn);
@@ -44,6 +59,11 @@ void ull_cp_run(struct ll_conn *conn);
  * @brief Handle TX ack PDU.
  */
 void ull_cp_tx_ack(struct ll_conn *conn, struct node_tx *tx);
+
+/**
+ * @brief Handle TX procedures notifications towards Host.
+ */
+void ull_cp_tx_ntf(struct ll_conn *conn);
 
 /**
  * @brief Handle received LL Control PDU.
@@ -93,11 +113,11 @@ uint8_t ull_cp_encryption_paused(struct ll_conn *conn);
 
 /**
  */
-void ull_cp_ltk_req_reply(struct ll_conn *conn, const uint8_t ltk[16]);
+uint8_t ull_cp_ltk_req_reply(struct ll_conn *conn, const uint8_t ltk[16]);
 
 /**
  */
-void ull_cp_ltk_req_neq_reply(struct ll_conn *conn);
+uint8_t ull_cp_ltk_req_neq_reply(struct ll_conn *conn);
 
 /**
  * @brief Initiate a PHY Update Procedure.
@@ -127,9 +147,42 @@ void ull_cp_conn_param_req_neg_reply(struct ll_conn *conn, uint8_t error_code);
 uint8_t ull_cp_remote_dle_pending(struct ll_conn *conn);
 
 /**
+ * @brief Check if a remote connection param reg is in the
+ *        works.
+ */
+uint8_t ull_cp_remote_cpr_pending(struct ll_conn *conn);
+
+/**
  * @brief Initiate a Termination Procedure.
  */
 uint8_t ull_cp_terminate(struct ll_conn *conn, uint8_t error_code);
+
+/**
+ * @brief Initiate a CIS Termination Procedure.
+ */
+uint8_t ull_cp_cis_terminate(struct ll_conn *conn, struct ll_conn_iso_stream *cis,
+			     uint8_t error_code);
+
+/**
+ * @brief Is ongoing create cis procedure expecting a reply?
+ */
+bool ull_cp_cc_awaiting_reply(struct ll_conn *conn);
+
+/**
+ * @brief Get handle of ongoing create cis procedure.
+ * @return 0xFFFF if none
+ */
+uint16_t ull_cp_cc_ongoing_handle(struct ll_conn *conn);
+
+/**
+ * @brief Accept the remote device’s request to create cis.
+ */
+void ull_cp_cc_accept(struct ll_conn *conn);
+
+/**
+ * @brief Rejset the remote device’s request to create cis.
+ */
+void ull_cp_cc_reject(struct ll_conn *conn, uint8_t error_code);
 
 /**
  * @brief Initiate a Channel Map Update Procedure.

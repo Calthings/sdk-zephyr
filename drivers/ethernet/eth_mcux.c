@@ -19,25 +19,25 @@
 #define LOG_LEVEL CONFIG_ETHERNET_LOG_LEVEL
 #define RING_ID 0
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-#include <device.h>
-#include <sys/util.h>
-#include <kernel.h>
-#include <sys/__assert.h>
-#include <net/net_pkt.h>
-#include <net/net_if.h>
-#include <net/ethernet.h>
+#include <zephyr/device.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/net/net_pkt.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/ethernet.h>
 #include <ethernet/eth_stats.h>
-#include <pm/device.h>
+#include <zephyr/pm/device.h>
 
 #if defined(CONFIG_PTP_CLOCK_MCUX)
-#include <drivers/ptp_clock.h>
+#include <zephyr/drivers/ptp_clock.h>
 #endif
 
 #if IS_ENABLED(CONFIG_NET_DSA)
-#include <net/dsa.h>
+#include <zephyr/net/dsa.h>
 #endif
 
 #include "fsl_enet.h"
@@ -46,12 +46,12 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "fsl_enet_mdio.h"
 #if defined(CONFIG_NET_POWER_MANAGEMENT)
 #include "fsl_clock.h"
-#include <drivers/clock_control.h>
+#include <zephyr/drivers/clock_control.h>
 #endif
-#include <devicetree.h>
-#include <drivers/gpio.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
 #if defined(CONFIG_PINCTRL)
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 #endif
 
 #include "eth.h"
@@ -141,10 +141,10 @@ static const char *eth_name(ENET_Type *base)
 {
 	switch ((int)base) {
 	case DT_INST_REG_ADDR(0):
-		return DT_INST_LABEL(0);
+		return "ETH_0";
 #if DT_NODE_HAS_STATUS(DT_DRV_INST(1), okay)
 	case DT_INST_REG_ADDR(1):
-		return DT_INST_LABEL(1);
+		return "ETH_1";
 #endif
 	default:
 		return "unknown";
@@ -1320,7 +1320,7 @@ static const struct ethernet_api api_funcs = {
 static void eth_mcux_ptp_isr(const struct device *dev)
 {
 	struct eth_context *context = dev->data;
-	int irq_lock_key = irq_lock();
+	unsigned int irq_lock_key = irq_lock();
 	enet_ptp_timer_channel_t channel;
 
 	/* clear channel */
@@ -1339,7 +1339,7 @@ static void eth_mcux_common_isr(const struct device *dev)
 {
 	struct eth_context *context = dev->data;
 	uint32_t EIR = ENET_GetInterruptStatus(context->base);
-	int irq_lock_key = irq_lock();
+	unsigned int irq_lock_key = irq_lock();
 
 	if (EIR & (kENET_RxBufferInterrupt | kENET_RxFrameInterrupt)) {
 		/* disable the IRQ for RX */
@@ -1447,7 +1447,7 @@ static void eth_mcux_err_isr(const struct device *dev)
 			    DEVICE_DT_INST_GET(n),			\
 			    0);						\
 		irq_enable(DT_INST_IRQ_BY_NAME(n, name, irq));		\
-	} while (0)
+	} while (false)
 
 #define ETH_MCUX_IRQ(n, name)						\
 	COND_CODE_1(DT_INST_IRQ_HAS_NAME(n, name),			\
@@ -1465,7 +1465,7 @@ static void eth_mcux_err_isr(const struct device *dev)
 			    DEVICE_DT_INST_GET(n),					\
 			    0);								\
 		irq_enable(DT_IRQ_BY_NAME(PTP_INST_NODEID(n), ieee1588_tmr, irq));	\
-	} while (0)
+	} while (false)
 
 #define ETH_MCUX_IRQ_PTP(n)						\
 	COND_CODE_1(DT_NODE_HAS_STATUS(PTP_INST_NODEID(n), okay),	\

@@ -5,8 +5,8 @@
  */
 
 
-#include <zephyr.h>
-#include <ztest.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/ztest.h>
 
 void test_i2s_tx_transfer_configure(void);
 void test_i2s_rx_transfer_configure(void);

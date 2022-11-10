@@ -10,8 +10,8 @@
  * @defgroup lib_dlist_tests Dlist
  */
 
-#include <ztest.h>
-#include <sys/dlist.h>
+#include <zephyr/ztest.h>
+#include <zephyr/sys/dlist.h>
 
 #define NODE_SIZE 5
 

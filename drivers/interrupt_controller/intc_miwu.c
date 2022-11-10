@@ -46,17 +46,17 @@
  *
  */
 
-#include <device.h>
-#include <kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <soc.h>
-#include <sys/__assert.h>
-#include <irq_nextlevel.h>
-#include <drivers/gpio.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/irq_nextlevel.h>
+#include <zephyr/drivers/gpio.h>
 
 #include "soc_miwu.h"
 #include "soc_gpio.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(intc_miwu, LOG_LEVEL_ERR);
 
 /* MIWU module instances forward declaration */
@@ -136,8 +136,9 @@ static void intc_miwu_isr_pri(int wui_table, int wui_group)
 	uint8_t mask = NPCX_WKPND(base, wui_group) & NPCX_WKEN(base, wui_group);
 
 	/* Clear pending bits before dispatch ISR */
-	if (mask)
+	if (mask) {
 		NPCX_WKPCL(base, wui_group) = mask;
+	}
 
 	for (wui_bit = 0; wui_bit < 8; wui_bit++) {
 		if (mask & BIT(wui_bit)) {

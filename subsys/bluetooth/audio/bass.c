@@ -7,17 +7,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <sys/byteorder.h>
+#include <zephyr/zephyr.h>
+#include <zephyr/sys/byteorder.h>
 
-#include <device.h>
-#include <init.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/iso.h>
-#include <bluetooth/gatt.h>
-#include <bluetooth/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/iso.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/buf.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_BASS)
 #define LOG_MODULE_NAME bt_bass
@@ -440,7 +440,7 @@ static void biginfo_recv(struct bt_le_per_adv_sync *sync,
 {
 	struct bass_recv_state_internal *state = bass_lookup_pa_sync(sync);
 
-	if (state != NULL || state->biginfo_received) {
+	if (state == NULL || state->biginfo_received) {
 		return;
 	}
 

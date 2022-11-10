@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <manifest.h>
-#include <cavs-mem.h>
-#include <toolchain.h>
+#include <adsp_memory.h>
+#include <zephyr/toolchain.h>
 
 /* These two modules defined here aren't runtime data used by Zephyr or
  * SOF with IPC3, but instead are inserted to *MANIFEST* of the final

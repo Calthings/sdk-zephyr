@@ -5,17 +5,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <drivers/gpio.h>
-#include <drivers/lora.h>
-#include <drivers/spi.h>
-#include <zephyr.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/lora.h>
+#include <zephyr/drivers/spi.h>
+#include <zephyr/zephyr.h>
 
 #include <sx126x/sx126x.h>
 
 #include "sx12xx_common.h"
 #include "sx126x_common.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(sx126x, CONFIG_LORA_LOG_LEVEL);
 
 BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(semtech_sx1261) +
@@ -461,7 +461,7 @@ static int sx126x_lora_init(const struct device *dev)
 	const struct sx126x_config *config = dev->config;
 	int ret;
 
-	LOG_DBG("Initializing %s", DT_INST_LABEL(0));
+	LOG_DBG("Initializing sx126x");
 
 	if (sx12xx_configure_pin(antenna_enable, GPIO_OUTPUT_INACTIVE) ||
 	    sx12xx_configure_pin(rx_enable, GPIO_OUTPUT_INACTIVE) ||

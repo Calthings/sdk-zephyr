@@ -6,10 +6,10 @@
 
 #define DT_DRV_COMPAT	nxp_imx_flexspi
 
-#include <logging/log.h>
-#include <sys/util.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 #ifdef CONFIG_PINCTRL
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 #endif
 
 #include "memc_mcux_flexspi.h"
@@ -143,12 +143,15 @@ static int memc_flexspi_init(const struct device *dev)
 		return 0;
 	}
 
-	/* Apply pinctrl state */
+	/*
+	 * SOCs such as the RT1064 and RT1024 have internal flash, and no pinmux
+	 * settings, continue if no pinctrl state found.
+	 */
 #ifdef CONFIG_PINCTRL
 	int ret;
 
 	ret = pinctrl_apply_state(data->pincfg, PINCTRL_STATE_DEFAULT);
-	if (ret < 0) {
+	if (ret < 0 && ret != -ENOENT) {
 		return ret;
 	}
 #endif
@@ -175,7 +178,7 @@ static int memc_flexspi_init(const struct device *dev)
 #define MEMC_FLEXSPI_CFG_XIP(node_id) DT_SAME_NODE(node_id, DT_NODELABEL(flexspi))
 #elif defined(CONFIG_XIP) && defined(CONFIG_CODE_FLEXSPI2)
 #define MEMC_FLEXSPI_CFG_XIP(node_id) DT_SAME_NODE(node_id, DT_NODELABEL(flexspi2))
-#elif defined(CONFIG_SOC_SERIES_IMX_RT6XX)
+#elif defined(CONFIG_SOC_SERIES_IMX_RT6XX) || defined(CONFIG_SOC_SERIES_IMX_RT5XX)
 #define MEMC_FLEXSPI_CFG_XIP(node_id) IS_ENABLED(CONFIG_XIP)
 #else
 #define MEMC_FLEXSPI_CFG_XIP(node_id) false

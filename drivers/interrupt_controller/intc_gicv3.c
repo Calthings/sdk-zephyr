@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/__assert.h>
-#include <sw_isr_table.h>
-#include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <drivers/interrupt_controller/gic.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/sw_isr_table.h>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+#include <zephyr/drivers/interrupt_controller/gic.h>
 #include "intc_gic_common_priv.h"
 #include "intc_gicv3_priv.h"
 
@@ -60,8 +60,9 @@ static int gic_wait_rwp(uint32_t intid)
 		rwp_mask = BIT(GICD_CTLR_RWP);
 	}
 
-	while (sys_read32(base) & rwp_mask)
+	while (sys_read32(base) & rwp_mask) {
 		;
+	}
 
 	return 0;
 }
@@ -257,12 +258,14 @@ void gic_raise_sgi(unsigned int sgi_id, uint64_t target_aff,
  */
 static void gicv3_rdist_enable(mem_addr_t rdist)
 {
-	if (!(sys_read32(rdist + GICR_WAKER) & BIT(GICR_WAKER_CA)))
+	if (!(sys_read32(rdist + GICR_WAKER) & BIT(GICR_WAKER_CA))) {
 		return;
+	}
 
 	sys_clear_bit(rdist + GICR_WAKER, GICR_WAKER_PS);
-	while (sys_read32(rdist + GICR_WAKER) & BIT(GICR_WAKER_CA))
+	while (sys_read32(rdist + GICR_WAKER) & BIT(GICR_WAKER_CA)) {
 		;
+	}
 }
 
 #ifdef CONFIG_GIC_V3_ITS

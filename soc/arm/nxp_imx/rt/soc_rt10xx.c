@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <kernel.h>
-#include <device.h>
-#include <init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 #include <soc.h>
-#include <linker/sections.h>
-#include <linker/linker-defs.h>
+#include <zephyr/linker/sections.h>
+#include <zephyr/linker/linker-defs.h>
 #include <fsl_clock.h>
-#include <arch/cpu.h>
-#include <arch/arm/aarch32/cortex_m/cmsis.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 #include <fsl_flexspi_nor_boot.h>
-#include <dt-bindings/clock/imx_ccm.h>
+#include <zephyr/dt-bindings/clock/imx_ccm.h>
 #include <fsl_iomuxc.h>
 #if CONFIG_USB_DC_NXP_EHCI
 #include "usb_phy.h"
@@ -187,14 +187,14 @@ static ALWAYS_INLINE void clock_init(void)
 	USB_EhciPhyInit(kUSB_ControllerEhci1, CPU_XTAL_CLK_HZ, &usbPhyConfig);
 #endif
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc1), okay) && CONFIG_DISK_DRIVER_SDMMC
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc1), okay) && CONFIG_IMX_USDHC
 	/* Configure USDHC clock source and divider */
 	CLOCK_InitSysPfd(kCLOCK_Pfd0, 24U);
 	CLOCK_SetDiv(kCLOCK_Usdhc1Div, 1U);
 	CLOCK_SetMux(kCLOCK_Usdhc1Mux, 1U);
 	CLOCK_EnableClock(kCLOCK_Usdhc1);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc2), okay) && CONFIG_DISK_DRIVER_SDMMC
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc2), okay) && CONFIG_IMX_USDHC
 	/* Configure USDHC clock source and divider */
 	CLOCK_InitSysPfd(kCLOCK_Pfd0, 24U);
 	CLOCK_SetDiv(kCLOCK_Usdhc2Div, 1U);
@@ -210,6 +210,15 @@ static ALWAYS_INLINE void clock_init(void)
 #ifdef CONFIG_CAN_MCUX_FLEXCAN
 	CLOCK_SetDiv(kCLOCK_CanDiv, 1); /* Set CAN_CLK_PODF. */
 	CLOCK_SetMux(kCLOCK_CanMux, 2); /* Set Can clock source. */
+#endif
+
+#ifdef CONFIG_LOG_BACKEND_SWO
+	/* Enable ARM trace clock to enable SWO output */
+	CLOCK_EnableClock(kCLOCK_Trace);
+	/* Divide root clock output by 3 */
+	CLOCK_SetDiv(kCLOCK_TraceDiv, 3);
+	/* Source clock from 528MHz system PLL */
+	CLOCK_SetMux(kCLOCK_TraceMux, 0);
 #endif
 
 	/* Keep the system clock running so SYSTICK can wake up the system from

@@ -87,6 +87,7 @@
 		sw1 = &button1;
 		sw2 = &button2;
 		sw3 = &button3;
+		watchdog0 = &wdt0;
 	};
 };
 
@@ -167,7 +168,6 @@
 		writeoc = "pp4io";
 		readoc = "read4io";
 		sck-frequency = <8000000>;
-		label = "MX25R64";
 		jedec-id = [c2 28 17];
 		sfdp-bfp = [
 			e5 20 f1 ff  ff ff ff 03
@@ -199,7 +199,7 @@
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x000000000 0x0000C000>;
+			reg = <0x00000000 0x0000C000>;
 		};
 		slot0_partition: partition@c000 {
 			label = "image-0";

@@ -6,12 +6,12 @@
  */
 
 #include <soc.h>
-#include <drivers/clock_control.h>
-#include <drivers/clock_control/nrf_clock_control.h>
-#include <drivers/timer/system_timer.h>
-#include <sys_clock.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/clock_control/nrf_clock_control.h>
+#include <zephyr/drivers/timer/system_timer.h>
+#include <zephyr/sys_clock.h>
 #include <hal/nrf_timer.h>
-#include <spinlock.h>
+#include <zephyr/spinlock.h>
 
 #define TIMER NRF_TIMER0
 
@@ -236,7 +236,7 @@ static int sys_clock_driver_init(const struct device *dev)
 	ARG_UNUSED(dev);
 
 	/* FIXME switch to 1 MHz once this is fixed in QEMU */
-	nrf_timer_frequency_set(TIMER, NRF_TIMER_FREQ_2MHz);
+	nrf_timer_prescaler_set(TIMER, NRF_TIMER_FREQ_2MHz);
 	nrf_timer_bit_width_set(TIMER, NRF_TIMER_BIT_WIDTH_32);
 
 	IRQ_CONNECT(TIMER0_IRQn, 1, timer0_nrf_isr, 0, 0);

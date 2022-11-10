@@ -6,27 +6,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_test, CONFIG_NET_ROUTE_LOG_LEVEL);
 
 #include <zephyr/types.h>
-#include <ztest.h>
+#include <zephyr/ztest.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/printk.h>
-#include <linker/sections.h>
-#include <random/rand32.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/linker/sections.h>
+#include <zephyr/random/rand32.h>
 
-#include <tc_util.h>
+#include <zephyr/tc_util.h>
 
-#include <net/ethernet.h>
-#include <net/dummy.h>
-#include <net/buf.h>
-#include <net/net_ip.h>
-#include <net/net_if.h>
-#include <net/net_context.h>
+#include <zephyr/net/ethernet.h>
+#include <zephyr/net/dummy.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_context.h>
 
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
@@ -546,26 +546,26 @@ static void test_route_preference(void)
 
 
 /*test case main entry*/
-void test_main(void)
+ZTEST(route_test_suite, test_route)
 {
-	ztest_test_suite(test_route,
-			ztest_unit_test(test_init),
-			ztest_unit_test(test_net_ctx_create),
-			ztest_unit_test(test_populate_nbr_cache),
-			ztest_unit_test(test_route_add),
-			ztest_unit_test(test_route_update),
-			ztest_unit_test(test_route_get_nexthop),
-			ztest_unit_test(test_route_lookup_ok),
-			ztest_unit_test(test_route_lookup_fail),
-			ztest_unit_test(test_route_del),
-			ztest_unit_test(test_route_add),
-			ztest_unit_test(test_route_del_nexthop),
-			ztest_unit_test(test_route_del_again),
-			ztest_unit_test(test_route_del_nexthop_again),
-			ztest_unit_test(test_populate_nbr_cache),
-			ztest_unit_test(test_route_add_many),
-			ztest_unit_test(test_route_del_many),
-			ztest_unit_test(test_route_lifetime),
-			ztest_unit_test(test_route_preference));
-	ztest_run_test_suite(test_route);
+	test_init();
+	test_net_ctx_create();
+	test_populate_nbr_cache();
+	test_route_add();
+	test_route_update();
+	test_route_get_nexthop();
+	test_route_lookup_ok();
+	test_route_lookup_fail();
+	test_route_del();
+	test_route_add();
+	test_route_del_nexthop();
+	test_route_del_again();
+	test_route_del_nexthop_again();
+	test_populate_nbr_cache();
+	test_route_add_many();
+	test_route_del_many();
+	test_route_lifetime();
+	test_route_preference();
 }
+
+ZTEST_SUITE(route_test_suite, NULL, NULL, NULL, NULL, NULL);

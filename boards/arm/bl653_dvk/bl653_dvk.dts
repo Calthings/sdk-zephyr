@@ -73,6 +73,9 @@
 		sw1 = &button2;
 		sw2 = &button3;
 		sw3 = &button4;
+		mcuboot-button0 = &button1;
+		mcuboot-led0 = &led1;
+		watchdog0 = &wdt0;
 	};
 };
 
@@ -112,7 +115,6 @@
 		/* MCP4725 not populated at factory */
 		compatible = "microchip,mcp4725";
 		reg = <0x60>;
-		label = "MCP4725";
 		#io-channel-cells = <1>;
 		status = "disabled";
 	};
@@ -142,7 +144,7 @@
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x000000000 0xC000>;
+			reg = <0x00000000 0xC000>;
 		};
 		slot0_partition: partition@c000 {
 			label = "image-0";

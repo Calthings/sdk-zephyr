@@ -8,11 +8,11 @@
 #define LOG_MODULE_NAME net_lwm2m_obj_server
 #define LOG_LEVEL CONFIG_LWM2M_LOG_LEVEL
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <stdint.h>
-#include <init.h>
+#include <zephyr/init.h>
 
 #include "lwm2m_object.h"
 #include "lwm2m_engine.h"
@@ -219,6 +219,19 @@ int32_t lwm2m_server_get_pmax(uint16_t obj_inst_id)
 {
 	return server_get_instance_s32(obj_inst_id, default_max_period,
 				       CONFIG_LWM2M_SERVER_DEFAULT_PMAX);
+}
+
+int lwm2m_server_get_ssid(uint16_t obj_inst_id)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(inst); i++) {
+		if (inst[i].obj && inst[i].obj_inst_id == obj_inst_id) {
+			return server_id[i];
+		}
+	}
+
+	return -ENOENT;
 }
 
 int lwm2m_server_short_id_to_inst(uint16_t short_id)
